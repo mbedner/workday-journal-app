@@ -8,6 +8,25 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
 
+function stripMarkup(text: string): string {
+  if (!text) return ''
+  // Strip HTML tags
+  let plain = text.replace(/<[^>]+>/g, ' ')
+  // Strip markdown headings, bold, italic, code, etc.
+  plain = plain
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return plain
+}
+
 export function TranscriptsListPage() {
   const navigate = useNavigate()
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
@@ -92,7 +111,7 @@ export function TranscriptsListPage() {
                 </div>
                 {(t.raw_transcript ?? t.summary) && (
                   <p className="text-xs text-gray-500 mt-0.5 truncate">
-                    {t.raw_transcript ?? t.summary}
+                    {stripMarkup(t.raw_transcript ?? t.summary ?? '')}
                   </p>
                 )}
               </div>

@@ -27,6 +27,21 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   )
 }
 
+function stripMarkup(text: string): string {
+  if (!text) return ''
+  let plain = text.replace(/<[^>]+>/g, ' ')
+  plain = plain
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return plain
+}
+
 export function DashboardPage() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const navigate = useNavigate()
@@ -90,7 +105,7 @@ export function DashboardPage() {
                   <span className="text-sm font-medium text-gray-900">Today's journal</span>
                   <Badge variant="green">Entry exists</Badge>
                 </div>
-                {todayEntry.focus && <p className="text-sm text-gray-500 truncate">{todayEntry.focus}</p>}
+                {todayEntry.focus && <p className="text-sm text-gray-500 truncate">{stripMarkup(todayEntry.focus)}</p>}
                 <div className="mt-2">
                   <StarRating value={todayEntry.productivity_rating} readonly />
                 </div>

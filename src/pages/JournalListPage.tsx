@@ -10,6 +10,23 @@ import { Select } from '../components/ui/Select'
 import { StarRating } from '../components/ui/StarRating'
 import { EmptyState } from '../components/ui/EmptyState'
 
+function stripMarkup(text: string): string {
+  if (!text) return ''
+  let plain = text.replace(/<[^>]+>/g, ' ')
+  plain = plain
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return plain
+}
+
 export function JournalListPage() {
   const navigate = useNavigate()
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -102,7 +119,7 @@ export function JournalListPage() {
                   )}
                 </div>
                 {entry.focus && (
-                  <p className="text-sm text-gray-600 truncate">{entry.focus}</p>
+                  <p className="text-sm text-gray-600 truncate">{stripMarkup(entry.focus)}</p>
                 )}
                 {entry.productivity_rating && (
                   <div className="mt-1">
