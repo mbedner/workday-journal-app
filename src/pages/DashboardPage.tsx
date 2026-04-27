@@ -166,7 +166,7 @@ export function DashboardPage() {
           </div>
           {recentTranscripts.length === 0 ? (
             <Card>
-              <p className="text-sm text-gray-400 text-center py-4">No transcripts yet. Paste your first meeting transcript.</p>
+              <p className="text-sm text-gray-400 text-center py-4">No meeting notes yet. Paste your first meeting summary.</p>
             </Card>
           ) : (
             <Card padding={false}>

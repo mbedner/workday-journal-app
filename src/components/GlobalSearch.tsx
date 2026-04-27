@@ -157,7 +157,7 @@ export function GlobalSearch({ open, onClose }: Props) {
             {[
               { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}`, Icon: RiBookOpenLine },
               { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine },
-              { label: 'Transcripts', url: '/transcripts', Icon: RiFileList3Line },
+              { label: 'Meeting Notes', url: '/transcripts', Icon: RiFileList3Line },
             ].map(({ label, url, Icon }) => (
               <button
                 key={url}

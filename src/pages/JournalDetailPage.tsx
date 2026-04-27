@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { TagInput } from '../components/ui/TagInput'
 import { Badge } from '../components/ui/Badge'
+import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
@@ -162,7 +163,7 @@ export function JournalDetailPage() {
   // View mode
   if (!isEditing) {
     return (
-      <div className="max-w-3xl space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -192,26 +193,26 @@ export function JournalDetailPage() {
           <div className="space-y-5">
             {focus && (
               <div>
-                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide mb-1.5">Today's focus</p>
-                <p className="text-base font-medium text-indigo-900 leading-relaxed">{focus}</p>
+                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide mb-2">Today's focus</p>
+                <MarkdownContent content={focus} className="prose-p:text-indigo-900 prose-p:font-medium" />
               </div>
             )}
             {accomplished && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Accomplished</p>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{accomplished}</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Accomplished</p>
+                <MarkdownContent content={accomplished} />
               </div>
             )}
             {needsAttention && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Still needs attention</p>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{needsAttention}</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Still needs attention</p>
+                <MarkdownContent content={needsAttention} />
               </div>
             )}
             {reflection && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">End-of-day reflection</p>
-                <p className="text-sm text-gray-600 leading-relaxed italic whitespace-pre-wrap">{reflection}</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">End-of-day reflection</p>
+                <MarkdownContent content={reflection} className="prose-p:italic prose-p:text-gray-600" />
               </div>
             )}
           </div>
@@ -265,7 +266,7 @@ export function JournalDetailPage() {
 
   // Edit mode
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <button onClick={() => navigate('/journal')} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1">

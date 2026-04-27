@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { RiPencilLine, RiDeleteBinLine } from '@remixicon/react'
+import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Task } from '../types'
-import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
@@ -15,15 +14,8 @@ import { useToast } from '../contexts/ToastContext'
 type Status = Task['status']
 type Priority = Task['priority']
 
-const statusVariants: Record<Status, 'yellow' | 'blue' | 'green' | 'red'> = {
-  todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red',
-}
 const priorityVariants: Record<Priority, 'red' | 'yellow' | 'gray'> = {
   high: 'red', medium: 'yellow', low: 'gray',
-}
-
-const statusLabel: Record<Status, string> = {
-  todo: 'To do', in_progress: 'In progress', done: 'Done', blocked: 'Blocked',
 }
 
 interface TaskForm {
@@ -42,7 +34,7 @@ export function TasksPage() {
   const { addToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('open')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
@@ -51,11 +43,11 @@ export function TasksPage() {
   const [form, setForm] = useState<TaskForm>(defaultForm)
   const [submitting, setSubmitting] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
 
   const fetchTasks = async () => {
     setLoading(true)
-    const q = supabase.from('tasks').select('*')
-    let { data } = await q
+    const { data } = await supabase.from('tasks').select('*')
     setTasks(data ?? [])
     setLoading(false)
   }
@@ -99,11 +91,17 @@ export function TasksPage() {
     }
   }
 
-  const changeStatus = async (id: string, status: Status) => {
-    const patch: Partial<Task> = { status, updated_at: new Date().toISOString() }
-    if (status === 'done') patch.completed_at = new Date().toISOString()
-    await supabase.from('tasks').update(patch).eq('id', id)
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t))
+  const toggleDone = async (task: Task) => {
+    setToggling(task.id)
+    const newStatus: Status = task.status === 'done' ? 'todo' : 'done'
+    const patch: Partial<Task> = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+      completed_at: newStatus === 'done' ? new Date().toISOString() : null,
+    }
+    await supabase.from('tasks').update(patch).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t))
+    setToggling(null)
   }
 
   const deleteTask = async (id: string) => {
@@ -130,11 +128,16 @@ export function TasksPage() {
       if (!b.due_date) return -1
       return a.due_date.localeCompare(b.due_date)
     }
+    // Default: newest first, but done tasks always sink to bottom
+    const aDone = a.status === 'done' ? 1 : 0
+    const bDone = b.status === 'done' ? 1 : 0
+    if (aDone !== bDone) return aDone - bDone
     return b.created_at.localeCompare(a.created_at)
   })
 
   const filtered = sorted.filter(t => {
-    if (statusFilter && t.status !== statusFilter) return false
+    if (statusFilter === 'open' && t.status === 'done') return false
+    if (statusFilter && statusFilter !== 'open' && t.status !== statusFilter) return false
     if (priorityFilter && t.priority !== priorityFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -143,12 +146,15 @@ export function TasksPage() {
     return true
   })
 
+  const openCount = tasks.filter(t => t.status !== 'done').length
+  const doneCount = tasks.filter(t => t.status === 'done').length
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500">{tasks.filter(t => t.status !== 'done').length} open tasks</p>
+          <p className="text-sm text-gray-500">{openCount} open · {doneCount} completed</p>
         </div>
         <Button onClick={openAdd}>+ Add task</Button>
       </div>
@@ -156,11 +162,12 @@ export function TasksPage() {
       <div className="flex gap-3 flex-wrap">
         <Input placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[160px]" />
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-36">
-          <option value="">All statuses</option>
+          <option value="open">Open tasks</option>
+          <option value="">All tasks</option>
           <option value="todo">To do</option>
           <option value="in_progress">In progress</option>
           <option value="blocked">Blocked</option>
-          <option value="done">Done</option>
+          <option value="done">Completed</option>
         </Select>
         <Select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-32">
           <option value="">All priority</option>
@@ -180,40 +187,67 @@ export function TasksPage() {
         <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title={search || statusFilter || priorityFilter ? 'No tasks match your filters' : 'No tasks yet'}
-          description="Add one manually or create tasks from a journal entry or transcript."
-          action={!search && !statusFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
+          title={search || (statusFilter && statusFilter !== 'open') || priorityFilter ? 'No tasks match your filters' : 'No tasks yet'}
+          description="Add tasks manually or create them from a journal entry or meeting note."
+          action={!search && !priorityFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-          {filtered.map(task => (
-            <Card key={task.id} className="hover:border-indigo-200 transition-all">
-              <div className="flex items-start gap-3">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+          {filtered.map(task => {
+            const isDone = task.status === 'done'
+            const isToggling = toggling === task.id
+            return (
+              <div
+                key={task.id}
+                className={`flex items-start gap-3 px-4 py-3 group transition-colors ${isDone ? 'bg-gray-50/60' : 'hover:bg-gray-50/40'}`}
+              >
+                {/* Checkbox */}
+                <button
+                  onClick={() => toggleDone(task)}
+                  disabled={isToggling}
+                  className="mt-0.5 shrink-0 text-gray-300 hover:text-indigo-500 transition-colors disabled:opacity-50"
+                  aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                >
+                  {isDone
+                    ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
+                    : <RiCircleLine size={20} />
+                  }
+                </button>
+
+                {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                      {task.title}
-                    </span>
-                  </div>
-                  <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
-                    <Badge variant={statusVariants[task.status]}>{statusLabel[task.status]}</Badge>
+                  <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                    {task.title}
+                  </p>
+                  <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                    {task.status !== 'done' && task.status !== 'todo' && (
+                      <Badge variant={task.status === 'blocked' ? 'red' : 'blue'}>
+                        {task.status === 'in_progress' ? 'In progress' : 'Blocked'}
+                      </Badge>
+                    )}
                     <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
                     {task.due_date && (
-                      <span className="text-xs text-gray-400">Due {task.due_date}</span>
+                      <span className={`text-xs ${isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Due {task.due_date}
+                      </span>
                     )}
-                    {task.source_type !== 'manual' && (
-                      <span className="text-xs text-gray-400">from {task.source_type}</span>
+                    {task.notes && (
+                      <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{task.notes}</span>
                     )}
                   </div>
-                  {task.notes && (
-                    <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{task.notes}</p>
-                  )}
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+
+                {/* Actions */}
+                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Select
                     value={task.status}
-                    onChange={e => changeStatus(task.id, e.target.value as Status)}
-                    className="text-xs py-1 px-2 h-7"
+                    onChange={async e => {
+                      const s = e.target.value as Status
+                      const patch: Partial<Task> = { status: s, updated_at: new Date().toISOString(), completed_at: s === 'done' ? new Date().toISOString() : null }
+                      await supabase.from('tasks').update(patch).eq('id', task.id)
+                      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t))
+                    }}
+                    className="text-xs py-1 px-2 h-7 w-28"
                   >
                     <option value="todo">To do</option>
                     <option value="in_progress">In progress</option>
@@ -221,15 +255,15 @@ export function TasksPage() {
                     <option value="done">Done</option>
                   </Select>
                   <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
-                    <RiPencilLine size={15} />
+                    <RiPencilLine size={14} />
                   </button>
                   <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
-                    <RiDeleteBinLine size={15} />
+                    <RiDeleteBinLine size={14} />
                   </button>
                 </div>
               </div>
-            </Card>
-          ))}
+            )
+          })}
         </div>
       )}
 

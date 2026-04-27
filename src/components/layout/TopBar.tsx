@@ -7,7 +7,7 @@ const nav = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/journal', label: 'Journal' },
   { to: '/tasks', label: 'Tasks' },
-  { to: '/transcripts', label: 'Transcripts' },
+  { to: '/transcripts', label: 'Meeting Notes' },
   { to: '/projects', label: 'Projects' },
   { to: '/settings', label: 'Settings' },
 ]

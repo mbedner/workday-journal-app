@@ -125,7 +125,7 @@ export function SearchPage() {
           <option value="">All types</option>
           <option value="journal">Journals</option>
           <option value="task">Tasks</option>
-          <option value="transcript">Transcripts</option>
+          <option value="transcript">Meeting Notes</option>
         </Select>
       </div>
 

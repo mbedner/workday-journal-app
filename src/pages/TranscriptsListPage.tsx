@@ -54,10 +54,10 @@ export function TranscriptsListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Transcripts</h1>
+          <h1 className="text-xl font-bold text-gray-900">Meeting Notes</h1>
           <p className="text-sm text-gray-500">{transcripts.length} meeting{transcripts.length !== 1 ? 's' : ''} logged</p>
         </div>
-        <Button onClick={handleNew}>+ New transcript</Button>
+        <Button onClick={handleNew}>+ New meeting note</Button>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -72,9 +72,9 @@ export function TranscriptsListPage() {
         <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No transcripts yet"
-          description="Paste meeting transcripts here so decisions, action items, and follow-ups are easier to find later."
-          action={!search ? { label: '+ New transcript', onClick: handleNew } : undefined}
+          title="No meeting notes yet"
+          description="Paste meeting notes here so decisions, action items, and follow-ups are easier to find later."
+          action={!search ? { label: '+ New meeting note', onClick: handleNew } : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">

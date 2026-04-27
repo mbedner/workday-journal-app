@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { TagInput } from '../components/ui/TagInput'
 import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
+import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { useToast } from '../contexts/ToastContext'
@@ -147,7 +148,7 @@ export function TranscriptDetailPage() {
       : null
 
     return (
-      <div className="max-w-3xl space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -155,7 +156,7 @@ export function TranscriptDetailPage() {
               onClick={() => navigate('/transcripts')}
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1"
             >
-              <RiArrowLeftLine size={13} /> All transcripts
+              <RiArrowLeftLine size={13} /> All meeting notes
             </button>
             <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
             {(formattedDate || attendees) && (
@@ -201,9 +202,7 @@ export function TranscriptDetailPage() {
 
         {/* Content */}
         {content ? (
-          <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed">
-            {content}
-          </pre>
+          <MarkdownContent content={content} />
         ) : (
           <p className="text-sm text-gray-400 italic">No notes yet — click Edit to add content.</p>
         )}
@@ -227,9 +226,9 @@ export function TranscriptDetailPage() {
         </Modal>
 
         {/* Delete modal */}
-        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Delete transcript?">
+        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Delete meeting note?">
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">This will permanently delete this transcript and all associated data.</p>
+            <p className="text-sm text-gray-600">This will permanently delete this meeting note and all associated data.</p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
               <Button variant="danger" onClick={handleDelete}>Delete</Button>
@@ -242,11 +241,11 @@ export function TranscriptDetailPage() {
 
   // Edit mode
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <button onClick={() => navigate('/transcripts')} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1">
-            <RiArrowLeftLine size={13} /> All transcripts
+            <RiArrowLeftLine size={13} /> All meeting notes
           </button>
           <h1 className="text-xl font-bold text-gray-900 truncate">{title || 'Untitled Meeting'}</h1>
         </div>

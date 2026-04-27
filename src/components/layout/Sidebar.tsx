@@ -13,7 +13,7 @@ const nav = [
   { to: '/dashboard', label: 'Dashboard', Icon: RiDashboardLine },
   { to: '/journal', label: 'Journal', Icon: RiBookOpenLine },
   { to: '/tasks', label: 'Tasks', Icon: RiCheckboxLine },
-  { to: '/transcripts', label: 'Transcripts', Icon: RiFileList3Line },
+  { to: '/transcripts', label: 'Meeting Notes', Icon: RiFileList3Line },
   { to: '/projects', label: 'Projects', Icon: RiFolderLine },
   { to: '/settings', label: 'Settings', Icon: RiSettings3Line },
 ]
