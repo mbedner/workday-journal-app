@@ -10,6 +10,7 @@ import { TagInput } from '../components/ui/TagInput'
 import { Badge } from '../components/ui/Badge'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { RichTextEditor } from '../components/ui/RichTextEditor'
+import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
@@ -155,7 +156,21 @@ export function JournalDetailPage() {
     addToast('Task added', 'success')
   }
 
-  if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+  if (loading) return (
+    <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
+      <div className="space-y-2">
+        <Sk className="h-2.5 w-20" />
+        <Sk className="h-8 w-72" />
+        <Sk className="h-4 w-32 rounded-full" />
+      </div>
+      {['h-24', 'h-28', 'h-20', 'h-20'].map((h, i) => (
+        <div key={i} className="space-y-2">
+          <Sk className="h-2.5 w-28" />
+          <Sk className={`${h} w-full`} />
+        </div>
+      ))}
+    </div>
+  )
 
   const displayDate = date ? format(new Date(date + 'T12:00:00'), 'EEEE, MMMM d, yyyy') : ''
   const hasContent = focus || accomplished || needsAttention || reflection

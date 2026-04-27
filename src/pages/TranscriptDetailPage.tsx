@@ -10,6 +10,7 @@ import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
+import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { useToast } from '../contexts/ToastContext'
@@ -139,7 +140,20 @@ export function TranscriptDetailPage() {
     addToast('Task added', 'success')
   }
 
-  if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+  if (loading) return (
+    <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
+      <div className="space-y-2">
+        <Sk className="h-2.5 w-28" />
+        <Sk className="h-8 w-80" />
+        <Sk className="h-3 w-48" />
+      </div>
+      <div className="space-y-1.5">
+        {[...Array(12)].map((_, i) => (
+          <Sk key={i} className={`h-3 ${i % 4 === 3 ? 'w-3/5' : 'w-full'}`} />
+        ))}
+      </div>
+    </div>
+  )
 
   // View mode
   if (!isEditing) {

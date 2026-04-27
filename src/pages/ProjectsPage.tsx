@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
+import { SkListCard } from '../components/ui/Skeleton'
 import { useState } from 'react'
 
 export function ProjectsPage() {
@@ -81,7 +82,7 @@ export function ProjectsPage() {
       </div>
 
       {loading ? (
-        <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+        <SkListCard rows={3} />
       ) : projects.length === 0 ? (
         <EmptyState
           title="No projects yet"

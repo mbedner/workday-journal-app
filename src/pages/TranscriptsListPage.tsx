@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
+import { SkListCard } from '../components/ui/Skeleton'
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -88,7 +89,7 @@ export function TranscriptsListPage() {
       </div>
 
       {loading ? (
-        <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+        <SkListCard rows={4} />
       ) : filtered.length === 0 ? (
         <EmptyState
           title="No meeting notes yet"

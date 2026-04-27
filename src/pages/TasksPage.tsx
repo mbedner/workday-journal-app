@@ -13,6 +13,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
+import { SkListCard } from '../components/ui/Skeleton'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -242,7 +243,7 @@ export function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+        <SkListCard rows={5} />
       ) : filtered.length === 0 ? (
         <EmptyState
           title={search || (statusFilter && statusFilter !== 'open') || priorityFilter || projectFilter ? 'No tasks match your filters' : 'No tasks yet'}

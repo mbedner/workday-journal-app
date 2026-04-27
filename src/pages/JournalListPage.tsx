@@ -9,6 +9,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { StarRating } from '../components/ui/StarRating'
 import { EmptyState } from '../components/ui/EmptyState'
+import { SkListCard } from '../components/ui/Skeleton'
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -94,7 +95,7 @@ export function JournalListPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-gray-400 animate-pulse">Loading...</div>
+        <SkListCard rows={5} />
       ) : filtered.length === 0 ? (
         <EmptyState
           title="No journal entries yet"

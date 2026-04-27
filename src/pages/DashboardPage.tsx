@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
+import { Sk, SkListCard } from '../components/ui/Skeleton'
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -85,7 +86,51 @@ export function DashboardPage() {
     ? (weekEntries.reduce((s, e) => s + (e.productivity_rating ?? 0), 0) / weekEntries.filter(e => e.productivity_rating).length).toFixed(1)
     : '—'
 
-  if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+  if (loading) return (
+    <div className="space-y-8 animate-pulse">
+      {/* Greeting */}
+      <div className="space-y-1.5">
+        <Sk className="h-7 w-44" />
+        <Sk className="h-3.5 w-52" />
+      </div>
+      {/* Today card */}
+      <div className="space-y-3">
+        <Sk className="h-2.5 w-12" />
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <Sk className="h-3.5 w-40" />
+            <Sk className="h-3 w-72 max-w-full" />
+            <Sk className="h-3 w-24 rounded-full" />
+          </div>
+          <Sk className="h-8 w-16 rounded-lg shrink-0" />
+        </div>
+      </div>
+      {/* Stats row */}
+      <div className="space-y-3">
+        <Sk className="h-2.5 w-20" />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-4 space-y-2">
+              <Sk className="h-2 w-16" />
+              <Sk className="h-7 w-8" />
+              <Sk className="h-2 w-10" />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Two-column sections */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <Sk className="h-2.5 w-24" />
+          <SkListCard rows={3} />
+        </div>
+        <div className="space-y-3">
+          <Sk className="h-2.5 w-32" />
+          <SkListCard rows={2} />
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-8">

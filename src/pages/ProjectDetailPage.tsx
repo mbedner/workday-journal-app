@@ -21,6 +21,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
+import { Sk, SkListCard } from '../components/ui/Skeleton'
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -136,7 +137,36 @@ export function ProjectDetailPage() {
     }
   }
 
-  if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+  if (loading) return (
+    <div className="space-y-8 animate-pulse">
+      <div className="space-y-2">
+        <Sk className="h-2.5 w-24" />
+        <Sk className="h-8 w-56" />
+        <Sk className="h-3 w-80" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center gap-4">
+            <Sk className="h-10 w-10 rounded-lg shrink-0" />
+            <div className="space-y-2 flex-1">
+              <Sk className="h-6 w-8" />
+              <Sk className="h-2.5 w-20" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <Sk className="h-2.5 w-16" />
+          <SkListCard rows={3} />
+        </div>
+        <div className="space-y-3">
+          <Sk className="h-2.5 w-28" />
+          <SkListCard rows={3} />
+        </div>
+      </div>
+    </div>
+  )
   if (!project) return null
 
   const openTasks = tasks.filter(t => t.status !== 'done')
