@@ -10,6 +10,7 @@ import { TranscriptsListPage } from './pages/TranscriptsListPage'
 import { TranscriptDetailPage } from './pages/TranscriptDetailPage'
 import { SearchPage } from './pages/SearchPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/transcripts/:id" element={<TranscriptDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:id" element={<ProjectDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
