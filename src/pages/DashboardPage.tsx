@@ -116,7 +116,7 @@ export function DashboardPage() {
       {/* Productivity snapshot */}
       <section>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">This week</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
           <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
           <StatCard label="In progress" value={inProgressCount} sub="tasks" />
@@ -126,7 +126,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <div className="grid lg:grid-cols-2 xl:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Open tasks */}
         <section>
           <div className="flex items-center justify-between mb-3">

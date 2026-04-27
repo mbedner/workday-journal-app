@@ -9,6 +9,7 @@ import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
+import { useToast } from '../contexts/ToastContext'
 
 interface RelatedCounts {
   journals: number
@@ -17,6 +18,7 @@ interface RelatedCounts {
 }
 
 export function ProjectsPage() {
+  const { addToast } = useToast()
   const { projects, loading, create, update, remove } = useProjects()
   const [modalOpen, setModalOpen] = useState(false)
   const [editProject, setEditProject] = useState<Project | null>(null)
@@ -42,19 +44,32 @@ export function ProjectsPage() {
   const submit = async () => {
     if (!name.trim()) return
     setSubmitting(true)
-    if (editProject) {
-      await update(editProject.id, name.trim(), description || undefined)
-    } else {
-      await create(name.trim(), description || undefined)
+    try {
+      if (editProject) {
+        await update(editProject.id, name.trim(), description || undefined)
+        addToast('Project updated', 'success')
+      } else {
+        await create(name.trim(), description || undefined)
+        addToast('Project created', 'success')
+      }
+      setModalOpen(false)
+    } catch {
+      addToast('Failed to save project', 'error')
+    } finally {
+      setSubmitting(false)
     }
-    setModalOpen(false)
-    setSubmitting(false)
   }
 
   const handleDelete = async () => {
     if (!deleteId) return
-    await remove(deleteId)
-    setDeleteId(null)
+    try {
+      await remove(deleteId)
+      addToast('Project deleted', 'info')
+    } catch {
+      addToast('Failed to delete project', 'error')
+    } finally {
+      setDeleteId(null)
+    }
   }
 
   return (

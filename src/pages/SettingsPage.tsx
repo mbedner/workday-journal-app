@@ -5,10 +5,12 @@ import { supabase } from '../lib/supabase'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { useToast } from '../contexts/ToastContext'
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const { addToast } = useToast()
   const [exporting, setExporting] = useState(false)
   const [signOutModal, setSignOutModal] = useState(false)
 
@@ -51,6 +53,7 @@ export function SettingsPage() {
     a.click()
     URL.revokeObjectURL(url)
     setExporting(false)
+    addToast('Export complete', 'success')
   }
 
   return (

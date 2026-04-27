@@ -88,7 +88,11 @@ export function TranscriptsListPage() {
                       {t.meeting_date && <span>{t.meeting_date}</span>}
                       {t.attendees && <span className="truncate">{t.attendees}</span>}
                     </div>
-                    {t.summary && <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{t.summary}</p>}
+                    {(t.raw_transcript ?? t.summary ?? t.action_items) && (
+                      <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">
+                        {t.raw_transcript ?? t.summary ?? t.action_items}
+                      </p>
+                    )}
                   </div>
                   <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                 </div>

@@ -10,6 +10,7 @@ import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
+import { useToast } from '../contexts/ToastContext'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -38,6 +39,7 @@ const defaultForm: TaskForm = {
 }
 
 export function TasksPage() {
+  const { addToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
@@ -70,24 +72,31 @@ export function TasksPage() {
   const submit = async () => {
     if (!form.title.trim()) return
     setSubmitting(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const payload = {
-      title: form.title.trim(),
-      notes: form.notes || null,
-      status: form.status,
-      priority: form.priority,
-      due_date: form.due_date || null,
-      completed_at: form.status === 'done' ? (editTask?.completed_at ?? new Date().toISOString()) : null,
-      updated_at: new Date().toISOString(),
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const payload = {
+        title: form.title.trim(),
+        notes: form.notes || null,
+        status: form.status,
+        priority: form.priority,
+        due_date: form.due_date || null,
+        completed_at: form.status === 'done' ? (editTask?.completed_at ?? new Date().toISOString()) : null,
+        updated_at: new Date().toISOString(),
+      }
+      if (editTask) {
+        await supabase.from('tasks').update(payload).eq('id', editTask.id)
+        addToast('Task updated', 'success')
+      } else {
+        await supabase.from('tasks').insert({ ...payload, user_id: user!.id, source_type: 'manual' })
+        addToast('Task added', 'success')
+      }
+      await fetchTasks()
+      setModalOpen(false)
+    } catch {
+      addToast('Failed to save task', 'error')
+    } finally {
+      setSubmitting(false)
     }
-    if (editTask) {
-      await supabase.from('tasks').update(payload).eq('id', editTask.id)
-    } else {
-      await supabase.from('tasks').insert({ ...payload, user_id: user!.id, source_type: 'manual' })
-    }
-    await fetchTasks()
-    setModalOpen(false)
-    setSubmitting(false)
   }
 
   const changeStatus = async (id: string, status: Status) => {
@@ -98,9 +107,15 @@ export function TasksPage() {
   }
 
   const deleteTask = async (id: string) => {
-    await supabase.from('tasks').delete().eq('id', id)
-    setTasks(prev => prev.filter(t => t.id !== id))
-    setDeleteId(null)
+    try {
+      await supabase.from('tasks').delete().eq('id', id)
+      setTasks(prev => prev.filter(t => t.id !== id))
+      addToast('Task deleted', 'info')
+    } catch {
+      addToast('Failed to delete task', 'error')
+    } finally {
+      setDeleteId(null)
+    }
   }
 
   const sorted = [...tasks].sort((a, b) => {

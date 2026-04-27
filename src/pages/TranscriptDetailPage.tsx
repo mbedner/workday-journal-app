@@ -1,24 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { RiArrowLeftLine } from '@remixicon/react'
+import { RiArrowLeftLine, RiPencilLine } from '@remixicon/react'
+import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
 import { TagInput } from '../components/ui/TagInput'
+import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
+import { useToast } from '../contexts/ToastContext'
 
 export function TranscriptDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
   const [taskModal, setTaskModal] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
@@ -54,53 +58,61 @@ export function TranscriptDetailPage() {
       setContent(parts.length > 0 ? parts.join('\n\n') : '')
       setSelectedProjects((tp ?? []).map((r: any) => r.projects?.name).filter(Boolean))
       setSelectedTags((tt ?? []).map((r: any) => r.tags?.name).filter(Boolean))
+      // Existing transcript — view mode by default
+      const isNew = t.meeting_title === 'New Meeting' && !t.raw_transcript && !t.summary
+      setIsEditing(isNew)
       setLoading(false)
     })
   }, [id, navigate])
 
   const save = async () => {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('transcripts').update({
-      meeting_title: title || 'Untitled Meeting',
-      meeting_date: meetingDate || null,
-      attendees: attendees || null,
-      raw_transcript: content || null,
-      // Clear old structured fields — content lives in raw_transcript now
-      summary: null,
-      decisions: null,
-      action_items: null,
-      follow_ups: null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id!)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      await supabase.from('transcripts').update({
+        meeting_title: title || 'Untitled Meeting',
+        meeting_date: meetingDate || null,
+        attendees: attendees || null,
+        raw_transcript: content || null,
+        // Clear old structured fields — content lives in raw_transcript now
+        summary: null,
+        decisions: null,
+        action_items: null,
+        follow_ups: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id!)
 
-    await Promise.all([
-      supabase.from('transcript_projects').delete().eq('transcript_id', id!),
-      supabase.from('transcript_tags').delete().eq('transcript_id', id!),
-    ])
+      await Promise.all([
+        supabase.from('transcript_projects').delete().eq('transcript_id', id!),
+        supabase.from('transcript_tags').delete().eq('transcript_id', id!),
+      ])
 
-    const projectIds = await Promise.all(
-      selectedProjects.map(async name => {
-        let proj = allProjects.find(p => p.name === name)
-        if (!proj) { const { data } = await createProject(name); proj = data }
-        return proj?.id
-      })
-    )
-    const tagIds = await Promise.all(
-      selectedTags.map(async name => {
-        const tag = await findOrCreateTag(name)
-        return tag?.id
-      })
-    )
+      const projectIds = await Promise.all(
+        selectedProjects.map(async name => {
+          let proj = allProjects.find(p => p.name === name)
+          if (!proj) { const { data } = await createProject(name); proj = data }
+          return proj?.id
+        })
+      )
+      const tagIds = await Promise.all(
+        selectedTags.map(async name => {
+          const tag = await findOrCreateTag(name)
+          return tag?.id
+        })
+      )
 
-    const projRows = projectIds.filter(Boolean).map(pid => ({ user_id: user!.id, transcript_id: id!, project_id: pid }))
-    const tagRows = tagIds.filter(Boolean).map(tid => ({ user_id: user!.id, transcript_id: id!, tag_id: tid }))
-    if (projRows.length) await supabase.from('transcript_projects').insert(projRows)
-    if (tagRows.length) await supabase.from('transcript_tags').insert(tagRows)
+      const projRows = projectIds.filter(Boolean).map(pid => ({ user_id: user!.id, transcript_id: id!, project_id: pid }))
+      const tagRows = tagIds.filter(Boolean).map(tid => ({ user_id: user!.id, transcript_id: id!, tag_id: tid }))
+      if (projRows.length) await supabase.from('transcript_projects').insert(projRows)
+      if (tagRows.length) await supabase.from('transcript_tags').insert(tagRows)
 
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+      addToast('Saved', 'success')
+      setIsEditing(false)
+    } catch {
+      addToast('Failed to save', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -123,10 +135,112 @@ export function TranscriptDetailPage() {
     setTaskTitle('')
     setTaskModal(false)
     setAddingTask(false)
+    addToast('Task added', 'success')
   }
 
   if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
 
+  // View mode
+  if (!isEditing) {
+    const formattedDate = meetingDate
+      ? (() => { try { return format(new Date(meetingDate + 'T12:00:00'), 'MMMM d, yyyy') } catch { return meetingDate } })()
+      : null
+
+    return (
+      <div className="max-w-3xl space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <button
+              onClick={() => navigate('/transcripts')}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1"
+            >
+              <RiArrowLeftLine size={13} /> All transcripts
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
+            {(formattedDate || attendees) && (
+              <p className="text-sm text-gray-400 mt-1">
+                {[formattedDate, attendees].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Add task</Button>
+            <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
+              <RiPencilLine size={14} className="mr-1" /> Edit
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>Delete</Button>
+          </div>
+        </div>
+
+        {/* Projects & Tags */}
+        {(selectedProjects.length > 0 || selectedTags.length > 0) && (
+          <div className="space-y-2">
+            {selectedProjects.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Projects</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {selectedProjects.map(p => (
+                    <Badge key={p} variant="indigo">{p}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedTags.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Tags</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {selectedTags.map(t => (
+                    <Badge key={t} variant="gray">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Content */}
+        {content ? (
+          <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed">
+            {content}
+          </pre>
+        ) : (
+          <p className="text-sm text-gray-400 italic">No notes yet — click Edit to add content.</p>
+        )}
+
+        {/* Task modal */}
+        <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add task">
+          <div className="space-y-4">
+            <input
+              value={taskTitle}
+              onChange={e => setTaskTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTask() }}
+              placeholder="Task title..."
+              autoFocus
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setTaskModal(false)}>Cancel</Button>
+              <Button onClick={addTask} loading={addingTask} disabled={!taskTitle.trim()}>Add Task</Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Delete modal */}
+        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Delete transcript?">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">This will permanently delete this transcript and all associated data.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
+              <Button variant="danger" onClick={handleDelete}>Delete</Button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    )
+  }
+
+  // Edit mode
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -138,8 +252,9 @@ export function TranscriptDetailPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Add task</Button>
+          <Button variant="secondary" size="sm" onClick={() => setIsEditing(false)}>Cancel</Button>
           <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>Delete</Button>
-          <Button size="sm" onClick={save} loading={saving}>{saved ? '✓ Saved' : 'Save'}</Button>
+          <Button size="sm" onClick={save} loading={saving}>Save</Button>
         </div>
       </div>
 

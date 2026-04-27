@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { RiArrowLeftLine } from '@remixicon/react'
+import { RiArrowLeftLine, RiPencilLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
@@ -8,20 +8,23 @@ import { Button } from '../components/ui/Button'
 import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { TagInput } from '../components/ui/TagInput'
+import { Badge } from '../components/ui/Badge'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
+import { useToast } from '../contexts/ToastContext'
 
 export function JournalDetailPage() {
   const { date } = useParams<{ date: string }>()
   const navigate = useNavigate()
+  const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
 
   const [_entry, setEntry] = useState<JournalEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const [focus, setFocus] = useState('')
   const [accomplished, setAccomplished] = useState('')
@@ -52,6 +55,8 @@ export function JournalDetailPage() {
         setNeedsAttention(je.needs_attention ?? '')
         setReflection(je.reflection ?? '')
         setRating(je.productivity_rating)
+        // Existing entry — view mode by default
+        setIsEditing(false)
 
         const [{ data: jep }, { data: jet }] = await Promise.all([
           supabase.from('journal_entry_projects').select('project_id, projects(name)').eq('journal_entry_id', je.id),
@@ -59,6 +64,9 @@ export function JournalDetailPage() {
         ])
         setSelectedProjects((jep ?? []).map((r: any) => r.projects?.name).filter(Boolean))
         setSelectedTags((jet ?? []).map((r: any) => r.tags?.name).filter(Boolean))
+      } else {
+        // New entry — start in edit mode
+        setIsEditing(true)
       }
       setLoading(false)
     })
@@ -66,61 +74,66 @@ export function JournalDetailPage() {
 
   const save = async () => {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const payload = {
-      user_id: user!.id,
-      entry_date: date!,
-      focus: focus || null,
-      accomplished: accomplished || null,
-      needs_attention: needsAttention || null,
-      reflection: reflection || null,
-      productivity_rating: rating,
-      updated_at: new Date().toISOString(),
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const payload = {
+        user_id: user!.id,
+        entry_date: date!,
+        focus: focus || null,
+        accomplished: accomplished || null,
+        needs_attention: needsAttention || null,
+        reflection: reflection || null,
+        productivity_rating: rating,
+        updated_at: new Date().toISOString(),
+      }
+
+      let id = entryId.current
+      if (!id) {
+        const { data } = await supabase.from('journal_entries').insert(payload).select().single()
+        id = data?.id
+        entryId.current = id!
+        setEntry(data)
+      } else {
+        await supabase.from('journal_entries').update(payload).eq('id', id)
+      }
+
+      if (id) {
+        await Promise.all([
+          supabase.from('journal_entry_projects').delete().eq('journal_entry_id', id),
+          supabase.from('journal_entry_tags').delete().eq('journal_entry_id', id),
+        ])
+
+        const projectIds = await Promise.all(
+          selectedProjects.map(async name => {
+            let proj = allProjects.find(p => p.name === name)
+            if (!proj) { const { data } = await createProject(name); proj = data }
+            return proj?.id
+          })
+        )
+        const tagIds = await Promise.all(
+          selectedTags.map(async name => {
+            const tag = await findOrCreateTag(name)
+            return tag?.id
+          })
+        )
+
+        const projRows = projectIds.filter(Boolean).map(pid => ({
+          user_id: user!.id, journal_entry_id: id, project_id: pid,
+        }))
+        const tagRows = tagIds.filter(Boolean).map(tid => ({
+          user_id: user!.id, journal_entry_id: id, tag_id: tid,
+        }))
+        if (projRows.length) await supabase.from('journal_entry_projects').insert(projRows)
+        if (tagRows.length) await supabase.from('journal_entry_tags').insert(tagRows)
+      }
+
+      addToast('Journal saved', 'success')
+      setIsEditing(false)
+    } catch {
+      addToast('Failed to save', 'error')
+    } finally {
+      setSaving(false)
     }
-
-    let id = entryId.current
-    if (!id) {
-      const { data } = await supabase.from('journal_entries').insert(payload).select().single()
-      id = data?.id
-      entryId.current = id!
-      setEntry(data)
-    } else {
-      await supabase.from('journal_entries').update(payload).eq('id', id)
-    }
-
-    if (id) {
-      await Promise.all([
-        supabase.from('journal_entry_projects').delete().eq('journal_entry_id', id),
-        supabase.from('journal_entry_tags').delete().eq('journal_entry_id', id),
-      ])
-
-      const projectIds = await Promise.all(
-        selectedProjects.map(async name => {
-          let proj = allProjects.find(p => p.name === name)
-          if (!proj) { const { data } = await createProject(name); proj = data }
-          return proj?.id
-        })
-      )
-      const tagIds = await Promise.all(
-        selectedTags.map(async name => {
-          const tag = await findOrCreateTag(name)
-          return tag?.id
-        })
-      )
-
-      const projRows = projectIds.filter(Boolean).map(pid => ({
-        user_id: user!.id, journal_entry_id: id, project_id: pid,
-      }))
-      const tagRows = tagIds.filter(Boolean).map(tid => ({
-        user_id: user!.id, journal_entry_id: id, tag_id: tid,
-      }))
-      if (projRows.length) await supabase.from('journal_entry_projects').insert(projRows)
-      if (tagRows.length) await supabase.from('journal_entry_tags').insert(tagRows)
-    }
-
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
 
   const addTask = async () => {
@@ -138,12 +151,119 @@ export function JournalDetailPage() {
     setTaskTitle('')
     setTaskModal(false)
     setAddingTask(false)
+    addToast('Task added', 'success')
   }
 
   if (loading) return <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
 
   const displayDate = date ? format(new Date(date + 'T12:00:00'), 'EEEE, MMMM d, yyyy') : ''
+  const hasContent = focus || accomplished || needsAttention || reflection
 
+  // View mode
+  if (!isEditing) {
+    return (
+      <div className="max-w-3xl space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <button
+              onClick={() => navigate('/journal')}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1"
+            >
+              <RiArrowLeftLine size={13} /> All entries
+            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">{displayDate}</h1>
+              {rating !== null && <StarRating value={rating} readonly />}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Task</Button>
+            <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
+              <RiPencilLine size={14} className="mr-1" /> Edit
+            </Button>
+          </div>
+        </div>
+
+        {/* Content */}
+        {!hasContent ? (
+          <p className="text-sm text-gray-400 italic">Nothing written yet — click Edit to add an entry.</p>
+        ) : (
+          <div className="space-y-5">
+            {focus && (
+              <div>
+                <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wide mb-1.5">Today's focus</p>
+                <p className="text-base font-medium text-indigo-900 leading-relaxed">{focus}</p>
+              </div>
+            )}
+            {accomplished && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Accomplished</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{accomplished}</p>
+              </div>
+            )}
+            {needsAttention && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Still needs attention</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{needsAttention}</p>
+              </div>
+            )}
+            {reflection && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">End-of-day reflection</p>
+                <p className="text-sm text-gray-600 leading-relaxed italic whitespace-pre-wrap">{reflection}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Projects & Tags */}
+        {(selectedProjects.length > 0 || selectedTags.length > 0) && (
+          <div className="pt-4 border-t border-gray-100 space-y-2">
+            {selectedProjects.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Projects</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {selectedProjects.map(p => (
+                    <Badge key={p} variant="indigo">{p}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedTags.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Tags</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {selectedTags.map(t => (
+                    <Badge key={t} variant="gray">{t}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add Task">
+          <div className="space-y-4">
+            <input
+              value={taskTitle}
+              onChange={e => setTaskTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTask() }}
+              placeholder="Task title..."
+              autoFocus
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setTaskModal(false)}>Cancel</Button>
+              <Button onClick={addTask} loading={addingTask} disabled={!taskTitle.trim()}>Add Task</Button>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    )
+  }
+
+  // Edit mode
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -154,10 +274,11 @@ export function JournalDetailPage() {
           <h1 className="text-xl font-bold text-gray-900">{displayDate}</h1>
         </div>
         <div className="flex gap-2">
+          {entryId.current && (
+            <Button variant="secondary" size="sm" onClick={() => setIsEditing(false)}>Cancel</Button>
+          )}
           <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Task</Button>
-          <Button onClick={save} loading={saving} size="sm">
-            {saved ? '✓ Saved' : 'Save'}
-          </Button>
+          <Button onClick={save} loading={saving} size="sm">Save</Button>
         </div>
       </div>
 
