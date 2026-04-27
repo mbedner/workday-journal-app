@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Fuse from 'fuse.js'
-import { RiSearchLine, RiCloseLine, RiArrowRightSLine, RiBookOpenLine, RiCheckboxLine, RiFileList3Line } from '@remixicon/react'
+import {
+  RiSearchLine, RiCloseLine, RiArrowRightSLine,
+  RiBookOpenLine, RiCheckboxLine, RiFileList3Line,
+} from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { SearchResult } from '../types'
 import { Badge } from './ui/Badge'
@@ -10,62 +13,120 @@ const typeVariants: Record<string, 'indigo' | 'green' | 'blue'> = {
   journal: 'indigo', task: 'green', transcript: 'blue',
 }
 
+const typeLabels: Record<string, string> = {
+  journal: 'Journal', task: 'Task', transcript: 'Meeting',
+}
+
 interface Props {
   open: boolean
   onClose: () => void
+}
+
+/** Strip HTML tags and markdown syntax to get plain indexable text */
+function toPlainText(text: string | null | undefined): string {
+  if (!text) return ''
+  return text
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/** Return a ~150-char excerpt around the first occurrence of `query` in `text` */
+function excerpt(text: string, query: string, len = 150): string {
+  if (!text) return ''
+  const lower = text.toLowerCase()
+  const idx = lower.indexOf(query.toLowerCase().split(' ')[0])
+  if (idx === -1) return text.slice(0, len) + (text.length > len ? '…' : '')
+  const pad = Math.floor((len - query.length) / 2)
+  const start = Math.max(0, idx - pad)
+  const end = Math.min(text.length, start + len)
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '')
 }
 
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
-  const [_allItems, setAllItems] = useState<SearchResult[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
+  const [loading, setLoading] = useState(false)
   const fuseRef = useRef<Fuse<SearchResult> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const loadIndex = useCallback(async () => {
     if (loaded) return
+    setLoading(true)
+
     const [{ data: journals }, { data: tasks }, { data: transcripts }] = await Promise.all([
-      supabase.from('journal_entries').select('id, entry_date, focus, accomplished, needs_attention, reflection'),
+      supabase.from('journal_entries').select(
+        'id, entry_date, focus, accomplished, needs_attention, reflection'
+      ),
       supabase.from('tasks').select('id, title, notes, status, priority'),
-      supabase.from('transcripts').select('id, meeting_title, meeting_date, summary, decisions, action_items'),
+      supabase.from('transcripts').select(
+        'id, meeting_title, meeting_date, attendees, raw_transcript, summary, decisions, action_items'
+      ),
     ])
 
     const items: SearchResult[] = [
-      ...(journals ?? []).map((j: any) => ({
-        id: j.id, type: 'journal' as const,
-        title: j.focus || `Journal — ${j.entry_date}`,
-        date: j.entry_date,
-        body: [j.focus, j.accomplished, j.needs_attention, j.reflection].filter(Boolean).join(' '),
-        tags: [], projects: [],
-        url: `/journal/${j.entry_date}`,
-      })),
+      ...(journals ?? []).map((j: any) => {
+        const plain = [j.focus, j.accomplished, j.needs_attention, j.reflection]
+          .map(toPlainText).filter(Boolean).join(' ')
+        return {
+          id: j.id,
+          type: 'journal' as const,
+          title: toPlainText(j.focus) || `Journal — ${j.entry_date}`,
+          date: j.entry_date,
+          body: plain,
+          tags: [], projects: [],
+          url: `/journal/${j.entry_date}`,
+        }
+      }),
       ...(tasks ?? []).map((t: any) => ({
-        id: t.id, type: 'task' as const,
+        id: t.id,
+        type: 'task' as const,
         title: t.title,
-        body: [t.title, t.notes, t.status].filter(Boolean).join(' '),
+        body: [t.title, toPlainText(t.notes)].filter(Boolean).join(' '),
         tags: [], projects: [], status: t.status,
         url: '/tasks',
       })),
-      ...(transcripts ?? []).map((t: any) => ({
-        id: t.id, type: 'transcript' as const,
-        title: t.meeting_title,
-        date: t.meeting_date,
-        body: [t.meeting_title, t.summary, t.decisions, t.action_items].filter(Boolean).join(' '),
-        tags: [], projects: [],
-        url: `/transcripts/${t.id}`,
-      })),
+      ...(transcripts ?? []).map((t: any) => {
+        const plain = [
+          t.meeting_title, t.attendees,
+          t.raw_transcript, t.summary, t.decisions, t.action_items,
+        ].map(toPlainText).filter(Boolean).join(' ')
+        return {
+          id: t.id,
+          type: 'transcript' as const,
+          title: t.meeting_title,
+          date: t.meeting_date,
+          body: plain,
+          tags: [], projects: [],
+          url: `/transcripts/${t.id}`,
+        }
+      }),
     ]
 
-    setAllItems(items)
     fuseRef.current = new Fuse(items, {
-      keys: [{ name: 'title', weight: 2 }, { name: 'body', weight: 1 }],
-      threshold: 0.4,
+      keys: [
+        { name: 'title', weight: 3 },
+        { name: 'body', weight: 1 },
+      ],
+      threshold: 0.35,
       includeScore: true,
+      ignoreLocation: true,   // search entire body, not just the start
+      minMatchCharLength: 2,
     })
+
     setLoaded(true)
+    setLoading(false)
   }, [loaded])
 
   useEffect(() => {
@@ -76,20 +137,40 @@ export function GlobalSearch({ open, onClose }: Props) {
       setQuery('')
       setResults([])
       setActiveIndex(0)
+      // Reset index on close so next open picks up fresh content
+      setLoaded(false)
+      fuseRef.current = null
     }
   }, [open, loadIndex])
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); setActiveIndex(0); return }
     if (!fuseRef.current) return
-    setResults(fuseRef.current.search(query).slice(0, 8).map(r => r.item))
+
+    const q = query.toLowerCase().trim()
+
+    // 1. Exact phrase matches (title or body contains the literal query string)
+    const allItems: SearchResult[] = (fuseRef.current as any)._docs ?? []
+    const exactIds = new Set<string>()
+    const exactMatches = allItems.filter(item => {
+      const hit =
+        item.title.toLowerCase().includes(q) ||
+        item.body.toLowerCase().includes(q)
+      if (hit) exactIds.add(`${item.type}-${item.id}`)
+      return hit
+    })
+
+    // 2. Fuzzy matches for everything not already in exact results
+    const fuzzyMatches = fuseRef.current
+      .search(query)
+      .map(r => r.item)
+      .filter(item => !exactIds.has(`${item.type}-${item.id}`))
+
+    setResults([...exactMatches, ...fuzzyMatches].slice(0, 10))
     setActiveIndex(0)
   }, [query])
 
-  const go = (url: string) => {
-    navigate(url)
-    onClose()
-  }
+  const go = (url: string) => { navigate(url); onClose() }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, results.length - 1)) }
@@ -104,6 +185,7 @@ export function GlobalSearch({ open, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+
         {/* Input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
           <RiSearchLine size={16} className="text-gray-400 shrink-0" />
@@ -112,7 +194,7 @@ export function GlobalSearch({ open, onClose }: Props) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search journals, tasks, transcripts..."
+            placeholder="Search across journals, tasks, and meeting notes…"
             className="flex-1 text-sm outline-none placeholder-gray-400 text-gray-900"
           />
           {query && (
@@ -125,7 +207,7 @@ export function GlobalSearch({ open, onClose }: Props) {
 
         {/* Results */}
         {results.length > 0 ? (
-          <ul className="max-h-80 overflow-y-auto py-2">
+          <ul className="max-h-[420px] overflow-y-auto py-2">
             {results.map((r, i) => (
               <li key={`${r.type}-${r.id}`}>
                 <button
@@ -135,22 +217,26 @@ export function GlobalSearch({ open, onClose }: Props) {
                     i === activeIndex ? 'bg-indigo-50' : 'hover:bg-gray-50'
                   }`}
                 >
-                  <Badge variant={typeVariants[r.type]} className="mt-0.5 shrink-0">{r.type}</Badge>
+                  <Badge variant={typeVariants[r.type]} className="mt-0.5 shrink-0 text-xs">
+                    {typeLabels[r.type]}
+                  </Badge>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{r.title}</p>
                     {r.date && <p className="text-xs text-gray-400">{r.date}</p>}
                     {r.body && (
-                      <p className="text-xs text-gray-500 truncate">{r.body.slice(0, 120)}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">
+                        {excerpt(r.body, query)}
+                      </p>
                     )}
                   </div>
                 </button>
               </li>
             ))}
           </ul>
-        ) : query && loaded ? (
-          <p className="px-4 py-6 text-sm text-gray-400 text-center">No matches for "{query}"</p>
-        ) : query && !loaded ? (
-          <p className="px-4 py-6 text-sm text-gray-400 text-center animate-pulse">Loading...</p>
+        ) : loading ? (
+          <p className="px-4 py-6 text-sm text-gray-400 text-center animate-pulse">Loading index…</p>
+        ) : query ? (
+          <p className="px-4 py-6 text-sm text-gray-400 text-center">No matches for "<span className="text-gray-600 font-medium">{query}</span>"</p>
         ) : (
           <div className="px-4 py-4 space-y-1">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick nav</p>
