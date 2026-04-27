@@ -1,4 +1,5 @@
 import { useState, KeyboardEvent } from 'react'
+import { RiCloseLine } from '@remixicon/react'
 import { Badge } from './Badge'
 
 interface Props {
@@ -40,7 +41,9 @@ export function TagInput({ label, values, suggestions = [], onChange, placeholde
         {values.map(v => (
           <Badge key={v} variant="indigo" className="flex items-center gap-1">
             {v}
-            <button type="button" onClick={() => remove(v)} className="ml-0.5 hover:text-indigo-900">×</button>
+            <button type="button" onClick={() => remove(v)} className="ml-0.5 hover:text-indigo-900">
+              <RiCloseLine size={12} />
+            </button>
           </Badge>
         ))}
         <input

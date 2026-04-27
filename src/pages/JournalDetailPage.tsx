@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { RiArrowLeftLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
@@ -147,8 +148,8 @@ export function JournalDetailPage() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <button onClick={() => navigate('/journal')} className="text-xs text-gray-400 hover:text-indigo-600 transition mb-1">
-            ← All entries
+          <button onClick={() => navigate('/journal')} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1">
+            <RiArrowLeftLine size={13} /> All entries
           </button>
           <h1 className="text-xl font-bold text-gray-900">{displayDate}</h1>
         </div>

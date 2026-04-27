@@ -1,12 +1,21 @@
 import { NavLink } from 'react-router-dom'
+import {
+  RiDashboardLine,
+  RiBookOpenLine,
+  RiCheckboxLine,
+  RiFileList3Line,
+  RiFolderLine,
+  RiSettings3Line,
+  RiSearchLine,
+} from '@remixicon/react'
 
 const nav = [
-  { to: '/dashboard', label: 'Dashboard', icon: '▦' },
-  { to: '/journal', label: 'Journal', icon: '✎' },
-  { to: '/tasks', label: 'Tasks', icon: '✓' },
-  { to: '/transcripts', label: 'Transcripts', icon: '◎' },
-  { to: '/projects', label: 'Projects', icon: '◈' },
-  { to: '/settings', label: 'Settings', icon: '⚙' },
+  { to: '/dashboard', label: 'Dashboard', Icon: RiDashboardLine },
+  { to: '/journal', label: 'Journal', Icon: RiBookOpenLine },
+  { to: '/tasks', label: 'Tasks', Icon: RiCheckboxLine },
+  { to: '/transcripts', label: 'Transcripts', Icon: RiFileList3Line },
+  { to: '/projects', label: 'Projects', Icon: RiFolderLine },
+  { to: '/settings', label: 'Settings', Icon: RiSettings3Line },
 ]
 
 interface Props {
@@ -21,22 +30,19 @@ export function Sidebar({ onOpenSearch }: Props) {
         <p className="text-xs text-gray-400 mt-0.5">Your daily work companion</p>
       </div>
 
-      {/* Search trigger */}
       <div className="px-3 pt-3">
         <button
           onClick={onOpenSearch}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 bg-gray-50 border border-gray-200 hover:border-indigo-300 hover:text-gray-600 transition-colors group"
         >
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
+          <RiSearchLine size={14} className="shrink-0" />
           <span className="flex-1 text-left text-xs">Search...</span>
-          <kbd className="text-xs font-mono bg-white border border-gray-200 rounded px-1 py-0.5 text-gray-300 group-hover:text-gray-400 transition-colors">⌘K</kbd>
+          <kbd className="text-xs font-mono bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-300 group-hover:text-gray-400 transition-colors">⌘K</kbd>
         </button>
       </div>
 
       <nav className="flex-1 px-3 py-3 space-y-0.5">
-        {nav.map(({ to, label, icon }) => (
+        {nav.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -48,8 +54,12 @@ export function Sidebar({ onOpenSearch }: Props) {
               }`
             }
           >
-            <span className="text-base w-5 text-center">{icon}</span>
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icon size={16} className={isActive ? 'text-indigo-600' : 'text-gray-400'} />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>

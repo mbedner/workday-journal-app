@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
 import { Card } from '../components/ui/Card'
@@ -89,7 +90,7 @@ export function TranscriptsListPage() {
                     </div>
                     {t.summary && <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{t.summary}</p>}
                   </div>
-                  <span className="text-gray-300 group-hover:text-indigo-400 transition shrink-0 text-lg">→</span>
+                  <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                 </div>
               </Card>
             </Link>

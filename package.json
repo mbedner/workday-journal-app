@@ -10,6 +10,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@remixicon/react": "^4.9.0",
     "@supabase/supabase-js": "^2.45.0",
     "date-fns": "^3.6.0",
     "fuse.js": "^7.0.0",

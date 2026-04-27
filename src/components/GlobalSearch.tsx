@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Fuse from 'fuse.js'
+import { RiSearchLine, RiCloseLine, RiArrowRightSLine, RiBookOpenLine, RiCheckboxLine, RiFileList3Line } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { SearchResult } from '../types'
 import { Badge } from './ui/Badge'
@@ -105,9 +106,7 @@ export function GlobalSearch({ open, onClose }: Props) {
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
+          <RiSearchLine size={16} className="text-gray-400 shrink-0" />
           <input
             ref={inputRef}
             value={query}
@@ -117,8 +116,8 @@ export function GlobalSearch({ open, onClose }: Props) {
             className="flex-1 text-sm outline-none placeholder-gray-400 text-gray-900"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600 text-xs">
-              Clear
+            <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600 transition p-0.5 rounded">
+              <RiCloseLine size={16} />
             </button>
           )}
           <kbd className="hidden sm:inline text-xs text-gray-300 border border-gray-200 rounded px-1.5 py-0.5 font-mono">esc</kbd>
@@ -156,16 +155,18 @@ export function GlobalSearch({ open, onClose }: Props) {
           <div className="px-4 py-4 space-y-1">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick nav</p>
             {[
-              { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}` },
-              { label: 'Tasks', url: '/tasks' },
-              { label: 'Transcripts', url: '/transcripts' },
-            ].map(item => (
+              { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}`, Icon: RiBookOpenLine },
+              { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine },
+              { label: 'Transcripts', url: '/transcripts', Icon: RiFileList3Line },
+            ].map(({ label, url, Icon }) => (
               <button
-                key={item.url}
-                onClick={() => go(item.url)}
-                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                key={url}
+                onClick={() => go(url)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2.5"
               >
-                {item.label}
+                <Icon size={15} className="text-gray-400 shrink-0" />
+                {label}
+                <RiArrowRightSLine size={15} className="text-gray-300 ml-auto" />
               </button>
             ))}
           </div>

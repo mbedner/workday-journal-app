@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RiPencilLine, RiDeleteBinLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Task } from '../types'
 import { Card } from '../components/ui/Card'
@@ -205,10 +206,10 @@ export function TasksPage() {
                     <option value="done">Done</option>
                   </Select>
                   <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
-                    ✎
+                    <RiPencilLine size={15} />
                   </button>
                   <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
-                    ×
+                    <RiDeleteBinLine size={15} />
                   </button>
                 </div>
               </div>

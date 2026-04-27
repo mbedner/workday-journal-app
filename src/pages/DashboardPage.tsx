@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
+import { RiArrowRightSLine } from '@remixicon/react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -149,7 +150,7 @@ export function DashboardPage() {
                         {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
                       </div>
                     </div>
-                    <Link to="/tasks" className="text-gray-300 hover:text-indigo-500 transition shrink-0">→</Link>
+                    <Link to="/tasks"><RiArrowRightSLine size={18} className="text-gray-300 hover:text-indigo-500 transition shrink-0" /></Link>
                   </li>
                 ))}
               </ul>

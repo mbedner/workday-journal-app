@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { RiArrowLeftLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -129,8 +130,8 @@ export function TranscriptDetailPage() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <button onClick={() => navigate('/transcripts')} className="text-xs text-gray-400 hover:text-indigo-600 transition mb-1">
-            ← All transcripts
+          <button onClick={() => navigate('/transcripts')} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1">
+            <RiArrowLeftLine size={13} /> All transcripts
           </button>
           <h1 className="text-xl font-bold text-gray-900 truncate">{title || 'Untitled Meeting'}</h1>
         </div>

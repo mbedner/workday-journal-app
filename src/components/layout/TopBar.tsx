@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { RiMenuLine, RiCloseLine, RiSearchLine } from '@remixicon/react'
 import { useAuth } from '../../hooks/useAuth'
 
 const nav = [
@@ -33,21 +34,11 @@ export function TopBar({ onOpenSearch }: Props) {
           onClick={onOpenSearch}
           className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-400 bg-gray-50 border border-gray-200 hover:border-indigo-300 transition-colors"
         >
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
+          <RiSearchLine size={14} className="shrink-0" />
           <span className="text-xs">Search...</span>
         </button>
         <button onClick={() => setOpen(!open)} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600 shrink-0">
-          {open ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
+          {open ? <RiCloseLine size={20} /> : <RiMenuLine size={20} />}
         </button>
       </div>
       {open && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
@@ -109,7 +110,7 @@ export function JournalListPage() {
                       <StarRating value={entry.productivity_rating} readonly />
                     </div>
                   </div>
-                  <span className="text-gray-300 group-hover:text-indigo-400 transition shrink-0 text-lg">→</span>
+                  <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                 </div>
               </Card>
             </Link>

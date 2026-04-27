@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RiArrowRightSLine } from '@remixicon/react'
 import Fuse from 'fuse.js'
 import { supabase } from '../lib/supabase'
 import { SearchResult } from '../types'
@@ -160,7 +161,7 @@ export function SearchPage() {
                       </div>
                     )}
                   </div>
-                  <span className="text-gray-300 group-hover:text-indigo-400 transition shrink-0 text-lg">→</span>
+                  <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                 </div>
               </Card>
             </Link>

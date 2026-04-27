@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { RiPencilLine, RiDeleteBinLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Project } from '../types'
 import { useProjects } from '../hooks/useProjects'
@@ -99,13 +100,13 @@ export function ProjectsPage() {
                     onClick={e => { e.stopPropagation(); openEdit(p) }}
                     className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded"
                   >
-                    ✎
+                    <RiPencilLine size={15} />
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); setDeleteId(p.id) }}
                     className="p-1.5 text-gray-400 hover:text-red-500 transition rounded"
                   >
-                    ×
+                    <RiDeleteBinLine size={15} />
                   </button>
                 </div>
               </div>

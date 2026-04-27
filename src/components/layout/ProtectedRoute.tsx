@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom'
+import { RiLoaderLine } from '@remixicon/react'
 import { useAuth } from '../../hooks/useAuth'
 
 export function ProtectedRoute() {
@@ -7,7 +8,7 @@ export function ProtectedRoute() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+        <RiLoaderLine size={32} className="animate-spin text-indigo-600" />
       </div>
     )
   }
