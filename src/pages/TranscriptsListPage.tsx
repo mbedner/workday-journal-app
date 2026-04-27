@@ -97,12 +97,12 @@ export function TranscriptsListPage() {
           action={!search ? { label: '+ New meeting note', onClick: handleNew } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(t => (
             <Link
               key={t.id}
               to={`/transcripts/${t.id}`}
-              className="flex items-center gap-4 px-4 py-3.5 hover:bg-gray-50/60 transition-colors group"
+              className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>

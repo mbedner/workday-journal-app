@@ -219,7 +219,7 @@ export function ProjectDetailPage() {
               <p className="text-xs text-gray-400 mt-1">Add a task and associate it with <strong>{project.name}</strong>.</p>
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
               {[...openTasks, ...doneTasks].map(task => {
                 const isDone = task.status === 'done'
                 const isToggling = toggling === task.id
@@ -227,7 +227,7 @@ export function ProjectDetailPage() {
                 return (
                   <div
                     key={task.id}
-                    className={`flex items-start gap-3 px-4 py-3 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-gray-50/60'}`}
+                    className={`flex items-start gap-3 px-4 py-3 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
                   >
                     <button
                       onClick={() => toggleDone(task)}
@@ -275,12 +275,12 @@ export function ProjectDetailPage() {
               <p className="text-sm text-gray-400">No journal entries linked to this project yet.</p>
             </div>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
               {journals.map(entry => (
                 <Link
                   key={entry.id}
                   to={`/journal/${entry.entry_date}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors group"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50/60 transition-colors group"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">
@@ -313,12 +313,12 @@ export function ProjectDetailPage() {
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Meeting Notes</h2>
             <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all notes</Link>
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+          <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
             {transcripts.map(t => (
               <Link
                 key={t.id}
                 to={`/transcripts/${t.id}`}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-indigo-50/60 transition-colors group"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>

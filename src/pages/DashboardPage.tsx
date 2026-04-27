@@ -201,7 +201,7 @@ export function DashboardPage() {
             <Card padding={false}>
               <ul className="divide-y divide-gray-100">
                 {openTasks.map(task => (
-                  <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-gray-50/60 transition-colors">
+                  <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
                       <div className="flex gap-1.5 mt-1 flex-wrap">
@@ -235,7 +235,7 @@ export function DashboardPage() {
                   <li key={t.id} className="group">
                     <Link
                       to={`/transcripts/${t.id}`}
-                      className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50/60 transition-colors"
+                      className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>

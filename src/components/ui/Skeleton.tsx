@@ -8,7 +8,7 @@ export function Sk({ className = '' }: { className?: string }) {
 /** A white card container with divide-y rows — used by list skeletons */
 export function SkListCard({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+    <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3.5">
           <div className="flex-1 space-y-2">

@@ -90,11 +90,11 @@ export function ProjectsPage() {
           action={{ label: '+ New project', onClick: openAdd }}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {projects.map(p => (
             <div
               key={p.id}
-              className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/60 transition-colors cursor-pointer group"
+              className="flex items-center gap-3 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors cursor-pointer group"
               onClick={() => { loadCounts(p.id); navigate(`/projects/${p.id}`) }}
             >
               <div className="flex-1 min-w-0">

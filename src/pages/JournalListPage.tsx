@@ -103,12 +103,12 @@ export function JournalListPage() {
           action={{ label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) }}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(entry => (
             <Link
               key={entry.id}
               to={`/journal/${entry.entry_date}`}
-              className="flex items-center gap-4 px-4 py-3.5 hover:bg-gray-50/60 transition-colors group"
+              className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">

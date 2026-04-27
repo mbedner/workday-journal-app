@@ -251,7 +251,7 @@ export function TasksPage() {
           action={!search && !priorityFilter && !projectFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(task => {
             const isDone = task.status === 'done'
             const isToggling = toggling === task.id
@@ -260,7 +260,7 @@ export function TasksPage() {
             return (
               <div
                 key={task.id}
-                className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-gray-50/60'}`}
+                className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
               >
                 {/* Checkbox toggle */}
                 <button
