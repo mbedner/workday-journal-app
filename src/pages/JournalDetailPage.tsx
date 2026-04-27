@@ -5,11 +5,11 @@ import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
 import { Button } from '../components/ui/Button'
-import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { TagInput } from '../components/ui/TagInput'
 import { Badge } from '../components/ui/Badge'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
+import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
@@ -220,24 +220,20 @@ export function JournalDetailPage() {
 
         {/* Projects & Tags */}
         {(selectedProjects.length > 0 || selectedTags.length > 0) && (
-          <div className="pt-4 border-t border-gray-100 space-y-2">
+          <div className="pt-4 border-t border-gray-100 space-y-3">
             {selectedProjects.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Projects</span>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Projects</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {selectedProjects.map(p => (
-                    <Badge key={p} variant="indigo">{p}</Badge>
-                  ))}
+                  {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
                 </div>
               </div>
             )}
             {selectedTags.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide w-14 shrink-0">Tags</span>
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Tags</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {selectedTags.map(t => (
-                    <Badge key={t} variant="gray">{t}</Badge>
-                  ))}
+                  {selectedTags.map(t => <Badge key={t} variant="gray">{t}</Badge>)}
                 </div>
               </div>
             )}
@@ -284,33 +280,33 @@ export function JournalDetailPage() {
       </div>
 
       <div className="space-y-5">
-        <Textarea
+        <RichTextEditor
           label="Today's focus"
           value={focus}
-          onChange={e => setFocus(e.target.value)}
+          onChange={setFocus}
           placeholder="What's the most important thing to accomplish today?"
-          rows={2}
+          minHeight={90}
         />
-        <Textarea
+        <RichTextEditor
           label="Accomplished"
           value={accomplished}
-          onChange={e => setAccomplished(e.target.value)}
+          onChange={setAccomplished}
           placeholder="What did you get done? What moved forward?"
-          rows={4}
+          minHeight={140}
         />
-        <Textarea
+        <RichTextEditor
           label="Still needs attention"
           value={needsAttention}
-          onChange={e => setNeedsAttention(e.target.value)}
+          onChange={setNeedsAttention}
           placeholder="What didn't get done? What's carrying over?"
-          rows={3}
+          minHeight={110}
         />
-        <Textarea
+        <RichTextEditor
           label="End-of-day reflection"
           value={reflection}
-          onChange={e => setReflection(e.target.value)}
+          onChange={setReflection}
           placeholder="How did the day go? What would you do differently?"
-          rows={3}
+          minHeight={110}
         />
 
         <div>

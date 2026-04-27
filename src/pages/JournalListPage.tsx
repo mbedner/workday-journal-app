@@ -4,7 +4,6 @@ import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
-import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -53,10 +52,10 @@ export function JournalListPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Journal</h1>
-          <p className="text-sm text-gray-500">All your daily work entries</p>
+          <p className="text-sm text-gray-500">{entries.length} entr{entries.length !== 1 ? 'ies' : 'y'}</p>
         </div>
         <Button onClick={() => navigate(`/journal/${today}`)}>
-          {entries.some(e => e.entry_date === today) ? "Open today's journal" : "Start today's journal"}
+          {entries.some(e => e.entry_date === today) ? "Open today's entry" : "Start today's entry"}
         </Button>
       </div>
 
@@ -83,36 +82,35 @@ export function JournalListPage() {
         <EmptyState
           title="No journal entries yet"
           description="Start today's journal to capture what you worked on, what moved forward, and what still needs attention."
-          action={{ label: "Start today's journal", onClick: () => navigate(`/journal/${today}`) }}
+          action={{ label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) }}
         />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {filtered.map(entry => (
-            <Link key={entry.id} to={`/journal/${entry.entry_date}`}>
-              <Card className="hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer group">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {format(new Date(entry.entry_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')}
-                      </span>
-                      {entry.entry_date === today && (
-                        <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
-                      )}
-                    </div>
-                    {entry.focus && (
-                      <p className="text-sm text-gray-700 font-medium truncate">{entry.focus}</p>
-                    )}
-                    {entry.accomplished && (
-                      <p className="text-xs text-gray-500 truncate mt-0.5">{entry.accomplished}</p>
-                    )}
-                    <div className="mt-2">
-                      <StarRating value={entry.productivity_rating} readonly />
-                    </div>
-                  </div>
-                  <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+            <Link
+              key={entry.id}
+              to={`/journal/${entry.entry_date}`}
+              className="flex items-center gap-4 px-4 py-3.5 hover:bg-gray-50/60 transition-colors group"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {format(new Date(entry.entry_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')}
+                  </span>
+                  {entry.entry_date === today && (
+                    <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
+                  )}
                 </div>
-              </Card>
+                {entry.focus && (
+                  <p className="text-sm text-gray-600 truncate">{entry.focus}</p>
+                )}
+                {entry.productivity_rating && (
+                  <div className="mt-1">
+                    <StarRating value={entry.productivity_rating} readonly />
+                  </div>
+                )}
+              </div>
+              <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
             </Link>
           ))}
         </div>

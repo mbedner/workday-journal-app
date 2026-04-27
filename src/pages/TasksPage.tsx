@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
+import { format, parseISO, isToday, isPast } from 'date-fns'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -150,7 +151,7 @@ export function TasksPage() {
   const doneCount = tasks.filter(t => t.status === 'done').length
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
@@ -192,25 +193,26 @@ export function TasksPage() {
           action={!search && !priorityFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {filtered.map(task => {
             const isDone = task.status === 'done'
             const isToggling = toggling === task.id
+            const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
             return (
               <div
                 key={task.id}
-                className={`flex items-start gap-3 px-4 py-3 group transition-colors ${isDone ? 'bg-gray-50/60' : 'hover:bg-gray-50/40'}`}
+                className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-gray-50/60'}`}
               >
-                {/* Checkbox */}
+                {/* Checkbox toggle */}
                 <button
                   onClick={() => toggleDone(task)}
                   disabled={isToggling}
-                  className="mt-0.5 shrink-0 text-gray-300 hover:text-indigo-500 transition-colors disabled:opacity-50"
+                  className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
                   aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
                 >
                   {isDone
                     ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
-                    : <RiCircleLine size={20} />
+                    : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                   }
                 </button>
 
@@ -220,15 +222,12 @@ export function TasksPage() {
                     {task.title}
                   </p>
                   <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-                    {task.status !== 'done' && task.status !== 'todo' && (
-                      <Badge variant={task.status === 'blocked' ? 'red' : 'blue'}>
-                        {task.status === 'in_progress' ? 'In progress' : 'Blocked'}
-                      </Badge>
-                    )}
+                    {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                    {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
                     <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
                     {task.due_date && (
-                      <span className={`text-xs ${isDone ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Due {task.due_date}
+                      <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
                       </span>
                     )}
                     {task.notes && (
@@ -237,23 +236,8 @@ export function TasksPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
+                {/* Hover actions */}
                 <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Select
-                    value={task.status}
-                    onChange={async e => {
-                      const s = e.target.value as Status
-                      const patch: Partial<Task> = { status: s, updated_at: new Date().toISOString(), completed_at: s === 'done' ? new Date().toISOString() : null }
-                      await supabase.from('tasks').update(patch).eq('id', task.id)
-                      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...patch } : t))
-                    }}
-                    className="text-xs py-1 px-2 h-7 w-28"
-                  >
-                    <option value="todo">To do</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="blocked">Blocked</option>
-                    <option value="done">Done</option>
-                  </Select>
                   <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
                     <RiPencilLine size={14} />
                   </button>

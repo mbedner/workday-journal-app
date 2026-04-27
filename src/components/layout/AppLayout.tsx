@@ -27,7 +27,9 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <TopBar onOpenSearch={() => setSearchOpen(true)} />
           <main className="flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">
-            <Outlet />
+            <div className="max-w-5xl mx-auto">
+              <Outlet />
+            </div>
           </main>
         </div>
         <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />

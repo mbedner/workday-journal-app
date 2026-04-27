@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
-import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -36,7 +35,8 @@ export function TranscriptsListPage() {
       t.attendees?.toLowerCase().includes(q) ||
       t.summary?.toLowerCase().includes(q) ||
       t.decisions?.toLowerCase().includes(q) ||
-      t.action_items?.toLowerCase().includes(q)
+      t.action_items?.toLowerCase().includes(q) ||
+      t.raw_transcript?.toLowerCase().includes(q)
     )
   })
 
@@ -61,7 +61,7 @@ export function TranscriptsListPage() {
       </div>
 
       <div className="flex gap-3 flex-wrap">
-        <Input placeholder="Search transcripts..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
+        <Input placeholder="Search meeting notes..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-40">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
@@ -77,26 +77,26 @@ export function TranscriptsListPage() {
           action={!search ? { label: '+ New meeting note', onClick: handleNew } : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {filtered.map(t => (
-            <Link key={t.id} to={`/transcripts/${t.id}`}>
-              <Card className="hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer group">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
-                    <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
-                      {t.meeting_date && <span>{t.meeting_date}</span>}
-                      {t.attendees && <span className="truncate">{t.attendees}</span>}
-                    </div>
-                    {(t.raw_transcript ?? t.summary ?? t.action_items) && (
-                      <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">
-                        {t.raw_transcript ?? t.summary ?? t.action_items}
-                      </p>
-                    )}
-                  </div>
-                  <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+            <Link
+              key={t.id}
+              to={`/transcripts/${t.id}`}
+              className="flex items-center gap-4 px-4 py-3.5 hover:bg-gray-50/60 transition-colors group"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
+                <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
+                  {t.meeting_date && <span>{t.meeting_date}</span>}
+                  {t.attendees && <span className="truncate">{t.attendees}</span>}
                 </div>
-              </Card>
+                {(t.raw_transcript ?? t.summary) && (
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    {t.raw_transcript ?? t.summary}
+                  </p>
+                )}
+              </div>
+              <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
             </Link>
           ))}
         </div>
