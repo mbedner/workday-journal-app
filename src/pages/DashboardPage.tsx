@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
-import { RiArrowRightSLine } from '@remixicon/react'
+import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine } from '@remixicon/react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -20,11 +20,11 @@ function priorityVariant(p: Task['priority']): 'red' | 'yellow' | 'gray' {
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <Card className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
-      <span className="text-2xl font-bold text-gray-900">{value}</span>
-      {sub && <span className="text-xs text-gray-400">{sub}</span>}
-    </Card>
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-3 py-3 sm:px-5 sm:py-4 flex flex-col gap-0.5">
+      <span className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide leading-tight">{label}</span>
+      <span className="text-xl sm:text-2xl font-bold text-gray-900">{value}</span>
+      {sub && <span className="text-[10px] sm:text-xs text-gray-400">{sub}</span>}
+    </div>
   )
 }
 
@@ -52,6 +52,7 @@ export function DashboardPage() {
   const [weekTasks, setWeekTasks] = useState<Task[]>([])
   const [weekEntries, setWeekEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState<string | null>(null)
 
   useEffect(() => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -72,6 +73,15 @@ export function DashboardPage() {
       setLoading(false)
     })
   }, [today])
+
+  const toggleDone = async (task: Task) => {
+    setToggling(task.id)
+    const newStatus: Task['status'] = 'done'
+    const patch = { status: newStatus, updated_at: new Date().toISOString(), completed_at: new Date().toISOString() }
+    await supabase.from('tasks').update(patch).eq('id', task.id)
+    setOpenTasks(prev => prev.filter(t => t.id !== task.id))
+    setToggling(null)
+  }
 
   const completedThisWeek = weekTasks.filter(t => t.status === 'done').length
   const blockedCount = openTasks.filter(t => t.status === 'blocked').length
@@ -108,12 +118,12 @@ export function DashboardPage() {
       {/* Stats row */}
       <div className="space-y-3">
         <Sk className="h-2.5 w-20" />
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-4 space-y-2">
-              <Sk className="h-2 w-16" />
-              <Sk className="h-7 w-8" />
-              <Sk className="h-2 w-10" />
+              <Sk className="h-2 w-full max-w-[56px]" />
+              <Sk className="h-7 w-6" />
+              <Sk className="h-2 w-full max-w-[40px]" />
             </div>
           ))}
         </div>
@@ -176,7 +186,7 @@ export function DashboardPage() {
       {/* Productivity snapshot */}
       <section>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">This week</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
           <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
           <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
           <StatCard label="In progress" value={inProgressCount} sub="tasks" />
@@ -200,19 +210,33 @@ export function DashboardPage() {
           ) : (
             <Card padding={false}>
               <ul className="divide-y divide-gray-100">
-                {openTasks.map(task => (
-                  <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
-                      <div className="flex gap-1.5 mt-1 flex-wrap">
-                        <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
-                        <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
-                        {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+                {openTasks.map(task => {
+                  const isToggling = toggling === task.id
+                  return (
+                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                      <button
+                        onClick={() => toggleDone(task)}
+                        disabled={isToggling}
+                        className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
+                        aria-label="Mark complete"
+                      >
+                        {isToggling
+                          ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
+                          : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                        }
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                          <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
+                          <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
+                          {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <Link to={`/tasks`} className="text-gray-300 hover:text-indigo-400 transition shrink-0"><RiArrowRightSLine size={18} /></Link>
-                  </li>
-                ))}
+                      <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5"><RiArrowRightSLine size={18} /></Link>
+                    </li>
+                  )
+                })}
               </ul>
             </Card>
           )}

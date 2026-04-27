@@ -52,7 +52,7 @@ export function TagInput({ label, values, suggestions = [], onChange, placeholde
           onKeyDown={onKeyDown}
           onBlur={() => { if (input.trim()) add(input) }}
           placeholder={values.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] text-sm outline-none bg-transparent"
+          className="flex-1 min-w-[120px] text-base sm:text-sm outline-none bg-transparent"
         />
       </div>
       {filtered.length > 0 && (

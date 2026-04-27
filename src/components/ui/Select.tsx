@@ -20,7 +20,7 @@ export const Select = forwardRef<HTMLSelectElement, Props>(
           <select
             ref={ref}
             id={inputId}
-            className={`w-full appearance-none rounded-lg border px-3 py-2 pr-8 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white ${
+            className={`w-full appearance-none rounded-lg border px-3 py-2 pr-8 text-base sm:text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white ${
               error ? 'border-red-400' : 'border-gray-300'
             }`}
             {...props}
