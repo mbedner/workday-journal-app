@@ -55,13 +55,14 @@ export function TagInput({ label, values, suggestions = [], onChange, placeholde
           className="flex-1 min-w-[120px] text-sm outline-none bg-transparent"
         />
       </div>
-      {input && filtered.length > 0 && (
+      {filtered.length > 0 && (
         <div className="border border-gray-200 rounded-lg shadow-sm bg-white z-10 max-h-40 overflow-y-auto">
           {filtered.map(s => (
             <button
               key={s}
               type="button"
-              onClick={() => add(s)}
+              // onMouseDown prevents the input's onBlur from firing before this click registers
+              onMouseDown={e => { e.preventDefault(); add(s) }}
               className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 hover:text-indigo-700"
             >
               {s}

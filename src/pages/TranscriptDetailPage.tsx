@@ -27,11 +27,7 @@ export function TranscriptDetailPage() {
   const [title, setTitle] = useState('')
   const [meetingDate, setMeetingDate] = useState('')
   const [attendees, setAttendees] = useState('')
-  const [summary, setSummary] = useState('')
-  const [decisions, setDecisions] = useState('')
-  const [actionItems, setActionItems] = useState('')
-  const [followUps, setFollowUps] = useState('')
-  const [rawTranscript, setRawTranscript] = useState('')
+  const [content, setContent] = useState('')
   const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
@@ -47,11 +43,15 @@ export function TranscriptDetailPage() {
       setTitle(t.meeting_title)
       setMeetingDate(t.meeting_date ?? '')
       setAttendees(t.attendees ?? '')
-      setSummary(t.summary ?? '')
-      setDecisions(t.decisions ?? '')
-      setActionItems(t.action_items ?? '')
-      setFollowUps(t.follow_ups ?? '')
-      setRawTranscript(t.raw_transcript ?? '')
+      // Consolidate all old fields into a single content block
+      const parts = [
+        t.summary && `## Summary\n${t.summary}`,
+        t.decisions && `## Decisions\n${t.decisions}`,
+        t.action_items && `## Action Items\n${t.action_items}`,
+        t.follow_ups && `## Follow-ups\n${t.follow_ups}`,
+        t.raw_transcript && `## Transcript\n${t.raw_transcript}`,
+      ].filter(Boolean)
+      setContent(parts.length > 0 ? parts.join('\n\n') : '')
       setSelectedProjects((tp ?? []).map((r: any) => r.projects?.name).filter(Boolean))
       setSelectedTags((tt ?? []).map((r: any) => r.tags?.name).filter(Boolean))
       setLoading(false)
@@ -65,11 +65,12 @@ export function TranscriptDetailPage() {
       meeting_title: title || 'Untitled Meeting',
       meeting_date: meetingDate || null,
       attendees: attendees || null,
-      summary: summary || null,
-      decisions: decisions || null,
-      action_items: actionItems || null,
-      follow_ups: followUps || null,
-      raw_transcript: rawTranscript || null,
+      raw_transcript: content || null,
+      // Clear old structured fields — content lives in raw_transcript now
+      summary: null,
+      decisions: null,
+      action_items: null,
+      follow_ups: null,
       updated_at: new Date().toISOString(),
     }).eq('id', id!)
 
@@ -136,7 +137,7 @@ export function TranscriptDetailPage() {
           <h1 className="text-xl font-bold text-gray-900 truncate">{title || 'Untitled Meeting'}</h1>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Task from action item</Button>
+          <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Add task</Button>
           <Button variant="danger" size="sm" onClick={() => setDeleteModal(true)}>Delete</Button>
           <Button size="sm" onClick={save} loading={saving}>{saved ? '✓ Saved' : 'Save'}</Button>
         </div>
@@ -145,19 +146,21 @@ export function TranscriptDetailPage() {
       <div className="space-y-5">
         <Input label="Meeting title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" />
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Meeting date" type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} />
+          <Input label="Date" type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} />
           <Input label="Attendees" value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="Names or roles" />
         </div>
         <TagInput label="Projects" values={selectedProjects} suggestions={allProjects.map(p => p.name)} onChange={setSelectedProjects} placeholder="Add project..." />
         <TagInput label="Tags" values={selectedTags} suggestions={allTags.map(t => t.name)} onChange={setSelectedTags} placeholder="Add tag..." />
-        <Textarea label="Summary" value={summary} onChange={e => setSummary(e.target.value)} placeholder="High-level summary of the meeting..." rows={3} />
-        <Textarea label="Decisions" value={decisions} onChange={e => setDecisions(e.target.value)} placeholder="Key decisions made..." rows={3} />
-        <Textarea label="Action items" value={actionItems} onChange={e => setActionItems(e.target.value)} placeholder="Specific tasks or action items..." rows={3} />
-        <Textarea label="Follow-ups" value={followUps} onChange={e => setFollowUps(e.target.value)} placeholder="Questions, blockers, or items to follow up on..." rows={2} />
-        <Textarea label="Raw transcript" value={rawTranscript} onChange={e => setRawTranscript(e.target.value)} placeholder="Paste full transcript here..." rows={10} className="font-mono text-xs" />
+        <Textarea
+          label="Notes"
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          placeholder="Paste your AI summary, transcript, decisions, action items — whatever you need..."
+          rows={20}
+        />
       </div>
 
-      <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add task from action item">
+      <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add task">
         <div className="space-y-4">
           <input
             value={taskTitle}
