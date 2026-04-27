@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine } from '@remixicon/react'
+import { format, parseISO, isToday, isPast } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Task } from '../types'
 import { Button } from '../components/ui/Button'
@@ -7,10 +8,11 @@ import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
+import { TagInput } from '../components/ui/TagInput'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
-import { format, parseISO, isToday, isPast } from 'date-fns'
+import { useProjects } from '../hooks/useProjects'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -31,34 +33,61 @@ const defaultForm: TaskForm = {
   title: '', notes: '', status: 'todo', priority: 'medium', due_date: '',
 }
 
+// Map taskId → project names for display
+type ProjectMap = Record<string, string[]>
+
 export function TasksPage() {
   const { addToast } = useToast()
+  const { projects: allProjects, create: createProject } = useProjects()
+
   const [tasks, setTasks] = useState<Task[]>([])
+  const [projectMap, setProjectMap] = useState<ProjectMap>({})
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('open')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [form, setForm] = useState<TaskForm>(defaultForm)
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
 
   const fetchTasks = async () => {
     setLoading(true)
-    const { data } = await supabase.from('tasks').select('*')
-    setTasks(data ?? [])
+    const [{ data: taskData }, { data: tpData }] = await Promise.all([
+      supabase.from('tasks').select('*'),
+      supabase.from('task_projects').select('task_id, projects(name)'),
+    ])
+    setTasks(taskData ?? [])
+    // Build projectMap: taskId → [project names]
+    const map: ProjectMap = {}
+    for (const row of (tpData ?? []) as any[]) {
+      if (!row.task_id || !row.projects?.name) continue
+      if (!map[row.task_id]) map[row.task_id] = []
+      map[row.task_id].push(row.projects.name)
+    }
+    setProjectMap(map)
     setLoading(false)
   }
 
   useEffect(() => { fetchTasks() }, [])
 
-  const openAdd = () => { setEditTask(null); setForm(defaultForm); setModalOpen(true) }
-  const openEdit = (t: Task) => {
+  const openAdd = () => {
+    setEditTask(null)
+    setForm(defaultForm)
+    setSelectedProjects([])
+    setModalOpen(true)
+  }
+
+  const openEdit = async (t: Task) => {
     setEditTask(t)
     setForm({ title: t.title, notes: t.notes ?? '', status: t.status, priority: t.priority, due_date: t.due_date ?? '' })
+    setSelectedProjects(projectMap[t.id] ?? [])
     setModalOpen(true)
   }
 
@@ -76,13 +105,32 @@ export function TasksPage() {
         completed_at: form.status === 'done' ? (editTask?.completed_at ?? new Date().toISOString()) : null,
         updated_at: new Date().toISOString(),
       }
+
+      let taskId: string
       if (editTask) {
         await supabase.from('tasks').update(payload).eq('id', editTask.id)
+        taskId = editTask.id
         addToast('Task updated', 'success')
       } else {
-        await supabase.from('tasks').insert({ ...payload, user_id: user!.id, source_type: 'manual' })
+        const { data } = await supabase.from('tasks').insert({ ...payload, user_id: user!.id, source_type: 'manual' }).select().single()
+        taskId = data!.id
         addToast('Task added', 'success')
       }
+
+      // Sync project associations
+      await supabase.from('task_projects').delete().eq('task_id', taskId)
+      if (selectedProjects.length > 0) {
+        const projectIds = await Promise.all(
+          selectedProjects.map(async name => {
+            let proj = allProjects.find(p => p.name === name)
+            if (!proj) { const { data } = await createProject(name); proj = data }
+            return proj?.id
+          })
+        )
+        const rows = projectIds.filter(Boolean).map(pid => ({ user_id: user!.id, task_id: taskId, project_id: pid }))
+        if (rows.length) await supabase.from('task_projects').insert(rows)
+      }
+
       await fetchTasks()
       setModalOpen(false)
     } catch {
@@ -129,7 +177,6 @@ export function TasksPage() {
       if (!b.due_date) return -1
       return a.due_date.localeCompare(b.due_date)
     }
-    // Default: newest first, but done tasks always sink to bottom
     const aDone = a.status === 'done' ? 1 : 0
     const bDone = b.status === 'done' ? 1 : 0
     if (aDone !== bDone) return aDone - bDone
@@ -140,6 +187,10 @@ export function TasksPage() {
     if (statusFilter === 'open' && t.status === 'done') return false
     if (statusFilter && statusFilter !== 'open' && t.status !== statusFilter) return false
     if (priorityFilter && t.priority !== priorityFilter) return false
+    if (projectFilter) {
+      const taskProjects = projectMap[t.id] ?? []
+      if (!taskProjects.includes(projectFilter)) return false
+    }
     if (search) {
       const q = search.toLowerCase()
       return t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q)
@@ -176,6 +227,12 @@ export function TasksPage() {
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </Select>
+        {allProjects.length > 0 && (
+          <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-40">
+            <option value="">All projects</option>
+            {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+          </Select>
+        )}
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-32">
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
@@ -188,15 +245,16 @@ export function TasksPage() {
         <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          title={search || (statusFilter && statusFilter !== 'open') || priorityFilter ? 'No tasks match your filters' : 'No tasks yet'}
+          title={search || (statusFilter && statusFilter !== 'open') || priorityFilter || projectFilter ? 'No tasks match your filters' : 'No tasks yet'}
           description="Add tasks manually or create them from a journal entry or meeting note."
-          action={!search && !priorityFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
+          action={!search && !priorityFilter && !projectFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
           {filtered.map(task => {
             const isDone = task.status === 'done'
             const isToggling = toggling === task.id
+            const taskProjects = projectMap[task.id] ?? []
             const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
             return (
               <div
@@ -225,6 +283,9 @@ export function TasksPage() {
                     {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
                     {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
                     <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                    {taskProjects.map(p => (
+                      <Badge key={p} variant="indigo">{p}</Badge>
+                    ))}
                     {task.due_date && (
                       <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
                         {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
@@ -251,10 +312,18 @@ export function TasksPage() {
         </div>
       )}
 
+      {/* Add / Edit modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTask ? 'Edit task' : 'Add task'}>
         <div className="space-y-4">
           <Input label="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Task title" required autoFocus />
           <Textarea label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." rows={3} />
+          <TagInput
+            label="Projects"
+            values={selectedProjects}
+            suggestions={allProjects.map(p => p.name)}
+            onChange={setSelectedProjects}
+            placeholder="Associate with a project..."
+          />
           <div className="grid grid-cols-2 gap-3">
             <Select label="Status" value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Status })}>
               <option value="todo">To do</option>
@@ -278,6 +347,7 @@ export function TasksPage() {
         </div>
       </Modal>
 
+      {/* Delete modal */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete task?">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">This action cannot be undone.</p>
