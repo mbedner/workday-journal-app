@@ -49,15 +49,20 @@ export function TranscriptDetailPage() {
       setTitle(t.meeting_title)
       setMeetingDate(t.meeting_date ?? '')
       setAttendees(t.attendees ?? '')
-      // Consolidate all old fields into a single content block
-      const parts = [
-        t.summary && `## Summary\n${t.summary}`,
-        t.decisions && `## Decisions\n${t.decisions}`,
-        t.action_items && `## Action Items\n${t.action_items}`,
-        t.follow_ups && `## Follow-ups\n${t.follow_ups}`,
-        t.raw_transcript && `## Transcript\n${t.raw_transcript}`,
-      ].filter(Boolean)
-      setContent(parts.length > 0 ? parts.join('\n\n') : '')
+      // If raw_transcript is HTML (saved by the rich-text editor), use it directly.
+      // Otherwise fall back to combining the old structured fields with markdown headings.
+      if (t.raw_transcript && t.raw_transcript.trim().startsWith('<')) {
+        setContent(t.raw_transcript)
+      } else {
+        const parts = [
+          t.summary        && `## Summary\n${t.summary}`,
+          t.decisions      && `## Decisions\n${t.decisions}`,
+          t.action_items   && `## Action Items\n${t.action_items}`,
+          t.follow_ups     && `## Follow-ups\n${t.follow_ups}`,
+          t.raw_transcript && `## Meeting Notes\n${t.raw_transcript}`,
+        ].filter(Boolean)
+        setContent(parts.length > 0 ? parts.join('\n\n') : '')
+      }
       setSelectedProjects((tp ?? []).map((r: any) => r.projects?.name).filter(Boolean))
       setSelectedTags((tt ?? []).map((r: any) => r.tags?.name).filter(Boolean))
       // Existing transcript — view mode by default
@@ -301,12 +306,12 @@ export function TranscriptDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Delete transcript?">
+      <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Archive meeting note?">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">This will permanently delete this transcript and all associated data.</p>
+          <p className="text-sm text-gray-600">This meeting note will be archived and permanently deleted after 90 days. You can restore it from the Archive.</p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDelete}>Delete</Button>
+            <Button variant="danger" onClick={handleDelete}>Archive</Button>
           </div>
         </div>
       </Modal>
