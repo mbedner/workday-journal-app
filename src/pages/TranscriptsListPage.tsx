@@ -32,7 +32,7 @@ export function TranscriptsListPage() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [sort, setSort] = useState('date-desc')
 
   // New meeting modal
   const [modalOpen, setModalOpen] = useState(false)
