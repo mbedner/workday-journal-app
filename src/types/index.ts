@@ -9,6 +9,7 @@ export interface JournalEntry {
   productivity_rating: number | null
   created_at: string
   updated_at: string
+  archived_at?: string | null
   projects?: Project[]
   tags?: Tag[]
 }
@@ -26,6 +27,7 @@ export interface Task {
   source_id: string | null
   created_at: string
   updated_at: string
+  archived_at?: string | null
   projects?: Project[]
   tags?: Tag[]
 }
@@ -43,6 +45,7 @@ export interface Transcript {
   follow_ups: string | null
   created_at: string
   updated_at: string
+  archived_at?: string | null
   projects?: Project[]
   tags?: Tag[]
 }
@@ -54,6 +57,7 @@ export interface Project {
   description: string | null
   created_at: string
   updated_at: string
+  archived_at?: string | null
 }
 
 export interface Tag {

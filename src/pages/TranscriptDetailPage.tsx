@@ -118,7 +118,7 @@ export function TranscriptDetailPage() {
   }
 
   const handleDelete = async () => {
-    await supabase.from('transcripts').delete().eq('id', id!)
+    await supabase.from('transcripts').update({ archived_at: new Date().toISOString() }).eq('id', id!)
     navigate('/transcripts')
   }
 
@@ -235,13 +235,13 @@ export function TranscriptDetailPage() {
           </div>
         </Modal>
 
-        {/* Delete modal */}
-        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Delete meeting note?">
+        {/* Archive modal */}
+        <Modal open={deleteModal} onClose={() => setDeleteModal(false)} title="Archive meeting note?">
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">This will permanently delete this meeting note and all associated data.</p>
+            <p className="text-sm text-gray-600">This meeting note will be archived and permanently deleted after 90 days. You can restore it from the Archive.</p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setDeleteModal(false)}>Cancel</Button>
-              <Button variant="danger" onClick={handleDelete}>Delete</Button>
+              <Button variant="danger" onClick={handleDelete}>Archive</Button>
             </div>
           </div>
         </Modal>

@@ -7,6 +7,7 @@ import {
   RiFolderLine,
   RiSettings3Line,
   RiSearchLine,
+  RiArchiveLine,
 } from '@remixicon/react'
 
 const nav = [
@@ -15,6 +16,10 @@ const nav = [
   { to: '/tasks', label: 'Tasks', Icon: RiCheckboxLine },
   { to: '/transcripts', label: 'Meeting Notes', Icon: RiFileList3Line },
   { to: '/projects', label: 'Projects', Icon: RiFolderLine },
+]
+
+const bottomNav = [
+  { to: '/archive', label: 'Archive', Icon: RiArchiveLine },
   { to: '/settings', label: 'Settings', Icon: RiSettings3Line },
 ]
 
@@ -63,6 +68,30 @@ export function Sidebar({ onOpenSearch }: Props) {
           </NavLink>
         ))}
       </nav>
+
+      {/* Bottom nav */}
+      <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-0.5">
+        {bottomNav.map(({ to, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-indigo-50 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon size={16} className={isActive ? 'text-indigo-600' : 'text-gray-400'} />
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
     </aside>
   )
 }

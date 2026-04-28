@@ -8,7 +8,11 @@ export function useProjects() {
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('projects').select('*').order('name')
+    const { data } = await supabase
+      .from('projects')
+      .select('*')
+      .is('archived_at', null)
+      .order('name')
     setProjects(data ?? [])
     setLoading(false)
   }, [])
@@ -37,8 +41,12 @@ export function useProjects() {
     return { data, error }
   }
 
+  /** Soft-delete: sets archived_at instead of deleting the row */
   const remove = async (id: string) => {
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { error } = await supabase
+      .from('projects')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
     if (!error) setProjects(prev => prev.filter(p => p.id !== id))
     return { error }
   }

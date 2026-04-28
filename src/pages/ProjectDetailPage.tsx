@@ -94,9 +94,9 @@ export function ProjectDetailPage() {
       const transcriptIds = (xp ?? []).map((r: any) => r.transcript_id)
 
       const [taskRes, journalRes, transcriptRes] = await Promise.all([
-        taskIds.length ? supabase.from('tasks').select('*').in('id', taskIds).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
-        journalIds.length ? supabase.from('journal_entries').select('*').in('id', journalIds).order('entry_date', { ascending: false }) : Promise.resolve({ data: [] }),
-        transcriptIds.length ? supabase.from('transcripts').select('*').in('id', transcriptIds).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+        taskIds.length ? supabase.from('tasks').select('*').in('id', taskIds).is('archived_at', null).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+        journalIds.length ? supabase.from('journal_entries').select('*').in('id', journalIds).is('archived_at', null).order('entry_date', { ascending: false }) : Promise.resolve({ data: [] }),
+        transcriptIds.length ? supabase.from('transcripts').select('*').in('id', transcriptIds).is('archived_at', null).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
       ])
 
       setTasks((taskRes.data ?? []) as Task[])

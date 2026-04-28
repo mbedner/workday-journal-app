@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Project } from '../types'
@@ -12,7 +11,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { SkListCard } from '../components/ui/Skeleton'
 import { useState } from 'react'
-import { listVariants, itemVariants } from '../lib/motion'
 
 export function ProjectsPage() {
   const navigate = useNavigate()
@@ -92,16 +90,10 @@ export function ProjectsPage() {
           action={{ label: '+ New project', onClick: openAdd }}
         />
       ) : (
-        <motion.div
-          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
-          variants={listVariants}
-          initial="hidden"
-          animate="visible"
-        >
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {projects.map(p => (
-            <motion.div
+            <div
               key={p.id}
-              variants={itemVariants}
               className="flex items-center gap-3 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors cursor-pointer group"
               onClick={() => { loadCounts(p.id); navigate(`/projects/${p.id}`) }}
             >
@@ -133,9 +125,9 @@ export function ProjectsPage() {
               </div>
 
               <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editProject ? 'Edit project' : 'New project'}>
@@ -151,12 +143,12 @@ export function ProjectsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete project?">
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Archive project?">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Deleting this project won't delete linked content, but all links will be removed.</p>
+          <p className="text-sm text-gray-600">This project will be archived and permanently deleted after 90 days. Linked content won't be affected. You can restore it from the Archive.</p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleDelete}>Delete</Button>
+            <Button variant="danger" onClick={handleDelete}>Archive</Button>
           </div>
         </div>
       </Modal>

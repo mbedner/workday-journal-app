@@ -15,7 +15,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { SkListCard } from '../components/ui/Skeleton'
-import { listVariants, itemVariants } from '../lib/motion'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -63,7 +62,7 @@ export function TasksPage() {
   const fetchTasks = async () => {
     setLoading(true)
     const [{ data: taskData }, { data: tpData }] = await Promise.all([
-      supabase.from('tasks').select('*'),
+      supabase.from('tasks').select('*').is('archived_at', null),
       supabase.from('task_projects').select('task_id, projects(name)'),
     ])
     setTasks(taskData ?? [])
@@ -158,11 +157,11 @@ export function TasksPage() {
 
   const deleteTask = async (id: string) => {
     try {
-      await supabase.from('tasks').delete().eq('id', id)
+      await supabase.from('tasks').update({ archived_at: new Date().toISOString() }).eq('id', id)
       setTasks(prev => prev.filter(t => t.id !== id))
-      addToast('Task deleted', 'info')
+      addToast('Task archived', 'info')
     } catch {
-      addToast('Failed to delete task', 'error')
+      addToast('Failed to archive task', 'error')
     } finally {
       setDeleteId(null)
     }
@@ -253,21 +252,15 @@ export function TasksPage() {
           action={!search && !priorityFilter && !projectFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
-        <motion.div
-          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
-          variants={listVariants}
-          initial="hidden"
-          animate="visible"
-        >
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(task => {
             const isDone = task.status === 'done'
             const isToggling = toggling === task.id
             const taskProjects = projectMap[task.id] ?? []
             const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
             return (
-              <motion.div
+              <div
                 key={task.id}
-                variants={itemVariants}
                 className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
               >
                 {/* Checkbox toggle */}
@@ -317,10 +310,10 @@ export function TasksPage() {
                     <RiDeleteBinLine size={14} />
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )
           })}
-        </motion.div>
+        </div>
       )}
 
       {/* Add / Edit modal */}
@@ -358,13 +351,13 @@ export function TasksPage() {
         </div>
       </Modal>
 
-      {/* Delete modal */}
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete task?">
+      {/* Archive modal */}
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Archive task?">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">This action cannot be undone.</p>
+          <p className="text-sm text-gray-600">This task will be archived and permanently deleted after 90 days. You can restore it from the Archive.</p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="danger" onClick={() => deleteTask(deleteId!)}>Delete</Button>
+            <Button variant="danger" onClick={() => deleteTask(deleteId!)}>Archive</Button>
           </div>
         </div>
       </Modal>

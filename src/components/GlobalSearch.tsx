@@ -69,11 +69,11 @@ export function GlobalSearch({ open, onClose }: Props) {
     const [{ data: journals }, { data: tasks }, { data: transcripts }] = await Promise.all([
       supabase.from('journal_entries').select(
         'id, entry_date, focus, accomplished, needs_attention, reflection'
-      ),
-      supabase.from('tasks').select('id, title, notes, status, priority'),
+      ).is('archived_at', null),
+      supabase.from('tasks').select('id, title, notes, status, priority').is('archived_at', null),
       supabase.from('transcripts').select(
         'id, meeting_title, meeting_date, attendees, raw_transcript, summary, decisions, action_items'
-      ),
+      ).is('archived_at', null),
     ])
 
     const items: SearchResult[] = [

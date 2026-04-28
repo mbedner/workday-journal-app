@@ -10,7 +10,6 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
-import { listVariants, itemVariants } from '../lib/motion'
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -62,9 +61,9 @@ export function DashboardPage() {
 
     Promise.all([
       supabase.from('journal_entries').select('*').eq('entry_date', today).maybeSingle(),
-      supabase.from('tasks').select('*').in('status', ['todo', 'in_progress', 'blocked']).order('created_at', { ascending: false }).limit(8),
-      supabase.from('transcripts').select('*').order('created_at', { ascending: false }).limit(5),
-      supabase.from('tasks').select('*').gte('updated_at', weekStart).lte('updated_at', weekEnd + 'T23:59:59'),
+      supabase.from('tasks').select('*').in('status', ['todo', 'in_progress', 'blocked']).is('archived_at', null).order('created_at', { ascending: false }).limit(8),
+      supabase.from('transcripts').select('*').is('archived_at', null).order('created_at', { ascending: false }).limit(5),
+      supabase.from('tasks').select('*').is('archived_at', null).gte('updated_at', weekStart).lte('updated_at', weekEnd + 'T23:59:59'),
       supabase.from('journal_entries').select('*').gte('entry_date', weekStart).lte('entry_date', weekEnd),
     ]).then(([je, tasks, transcripts, wt, we]) => {
       setTodayEntry(je.data)
@@ -188,28 +187,14 @@ export function DashboardPage() {
       {/* Productivity snapshot */}
       <section>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">This week</h3>
-        <motion.div
-          className="grid grid-cols-3 xl:grid-cols-6 gap-3"
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
-          initial="hidden"
-          animate="visible"
-        >
-          {[
-            { label: 'Completed', value: completedThisWeek, sub: 'tasks' },
-            { label: 'Open', value: openTasks.length - blockedCount, sub: 'tasks' },
-            { label: 'In progress', value: inProgressCount, sub: 'tasks' },
-            { label: 'Blocked', value: blockedCount, sub: 'tasks' },
-            { label: 'Meetings', value: meetingsThisWeek, sub: 'logged' },
-            { label: 'Avg rating', value: avgRating, sub: 'productivity' },
-          ].map(s => (
-            <motion.div
-              key={s.label}
-              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } } }}
-            >
-              <StatCard label={s.label} value={s.value} sub={s.sub} />
-            </motion.div>
-          ))}
-        </motion.div>
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
+          <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
+          <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
+          <StatCard label="In progress" value={inProgressCount} sub="tasks" />
+          <StatCard label="Blocked" value={blockedCount} sub="tasks" />
+          <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
+          <StatCard label="Avg rating" value={avgRating} sub="productivity" />
+        </div>
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -225,16 +210,11 @@ export function DashboardPage() {
             </Card>
           ) : (
             <Card padding={false}>
-              <motion.ul
-                className="divide-y divide-gray-100"
-                variants={listVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <ul className="divide-y divide-gray-100">
                 {openTasks.map(task => {
                   const isToggling = toggling === task.id
                   return (
-                    <motion.li key={task.id} variants={itemVariants} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
                       <motion.button
                         onClick={() => toggleDone(task)}
                         disabled={isToggling}
@@ -257,10 +237,10 @@ export function DashboardPage() {
                         </div>
                       </div>
                       <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5"><RiArrowRightSLine size={18} /></Link>
-                    </motion.li>
+                    </li>
                   )
                 })}
-              </motion.ul>
+              </ul>
             </Card>
           )}
         </section>
@@ -277,14 +257,9 @@ export function DashboardPage() {
             </Card>
           ) : (
             <Card padding={false}>
-              <motion.ul
-                className="divide-y divide-gray-100"
-                variants={listVariants}
-                initial="hidden"
-                animate="visible"
-              >
+              <ul className="divide-y divide-gray-100">
                 {recentTranscripts.map(t => (
-                  <motion.li key={t.id} variants={itemVariants} className="group">
+                  <li key={t.id} className="group">
                     <Link
                       to={`/transcripts/${t.id}`}
                       className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
@@ -296,9 +271,9 @@ export function DashboardPage() {
                       </div>
                       <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                     </Link>
-                  </motion.li>
+                  </li>
                 ))}
-              </motion.ul>
+              </ul>
             </Card>
           )}
         </section>
