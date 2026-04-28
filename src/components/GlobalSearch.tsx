@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Fuse from 'fuse.js'
+import { format } from 'date-fns'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   RiSearchLine, RiCloseLine, RiArrowRightSLine,
@@ -54,7 +55,7 @@ function excerpt(text: string, query: string, len = 150): string {
 
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = format(new Date(), 'yyyy-MM-dd')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
