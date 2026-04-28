@@ -54,11 +54,13 @@ function excerpt(text: string, query: string, len = 150): string {
 
 export function GlobalSearch({ open, onClose }: Props) {
   const navigate = useNavigate()
+  const today = new Date().toISOString().slice(0, 10)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [todayHasEntry, setTodayHasEntry] = useState(false)
   const fuseRef = useRef<Fuse<SearchResult> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -75,6 +77,9 @@ export function GlobalSearch({ open, onClose }: Props) {
         'id, meeting_title, meeting_date, attendees, raw_transcript, summary, decisions, action_items'
       ).is('archived_at', null),
     ])
+
+    // Check if today already has a journal entry
+    setTodayHasEntry((journals ?? []).some((j: any) => j.entry_date === today))
 
     const items: SearchResult[] = [
       ...(journals ?? []).map((j: any) => {
@@ -139,6 +144,7 @@ export function GlobalSearch({ open, onClose }: Props) {
       setResults([])
       setActiveIndex(0)
       setLoaded(false)
+      setTodayHasEntry(false)
       fuseRef.current = null
     }
   }, [open, loadIndex])
@@ -261,10 +267,15 @@ export function GlobalSearch({ open, onClose }: Props) {
               <div className="px-4 py-4 space-y-1">
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick nav</p>
                 {[
-                  { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}`, Icon: RiBookOpenLine },
-                  { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine },
-                  { label: 'Meeting Notes', url: '/transcripts', Icon: RiFileList3Line },
-                ].map(({ label, url, Icon }) => (
+                  {
+                    label: todayHasEntry ? "Open today's journal" : "Start today's journal",
+                    url: `/journal/${today}`,
+                    Icon: RiBookOpenLine,
+                    pill: todayHasEntry ? 'exists' : undefined,
+                  },
+                  { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine, pill: undefined },
+                  { label: 'Meeting Notes', url: '/transcripts', Icon: RiFileList3Line, pill: undefined },
+                ].map(({ label, url, Icon, pill }) => (
                   <button
                     key={url}
                     onClick={() => go(url)}
@@ -272,6 +283,11 @@ export function GlobalSearch({ open, onClose }: Props) {
                   >
                     <Icon size={15} className="text-gray-400 shrink-0" />
                     {label}
+                    {pill && (
+                      <span className="ml-1 text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded-full font-medium">
+                        {pill}
+                      </span>
+                    )}
                     <RiArrowRightSLine size={15} className="text-gray-300 ml-auto" />
                   </button>
                 ))}
