@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
@@ -8,6 +9,9 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
+import { listVariants, itemVariants } from '../lib/motion'
+
+const MotionLink = motion.create(Link)
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -97,12 +101,18 @@ export function TranscriptsListPage() {
           action={!search ? { label: '+ New meeting note', onClick: handleNew } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+        <motion.div
+          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
+          variants={listVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {filtered.map(t => (
-            <Link
+            <MotionLink
               key={t.id}
               to={`/transcripts/${t.id}`}
               className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
+              variants={itemVariants}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
@@ -117,9 +127,9 @@ export function TranscriptsListPage() {
                 )}
               </div>
               <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-            </Link>
+            </MotionLink>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   )

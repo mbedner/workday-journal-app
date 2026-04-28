@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -10,6 +11,9 @@ import { Select } from '../components/ui/Select'
 import { StarRating } from '../components/ui/StarRating'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
+import { listVariants, itemVariants } from '../lib/motion'
+
+const MotionLink = motion.create(Link)
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -103,12 +107,18 @@ export function JournalListPage() {
           action={{ label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) }}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+        <motion.div
+          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
+          variants={listVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {filtered.map(entry => (
-            <Link
+            <MotionLink
               key={entry.id}
               to={`/journal/${entry.entry_date}`}
               className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
+              variants={itemVariants}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
@@ -129,9 +139,9 @@ export function JournalListPage() {
                 )}
               </div>
               <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-            </Link>
+            </MotionLink>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   )

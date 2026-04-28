@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Project } from '../types'
@@ -11,6 +12,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { SkListCard } from '../components/ui/Skeleton'
 import { useState } from 'react'
+import { listVariants, itemVariants } from '../lib/motion'
 
 export function ProjectsPage() {
   const navigate = useNavigate()
@@ -90,10 +92,16 @@ export function ProjectsPage() {
           action={{ label: '+ New project', onClick: openAdd }}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+        <motion.div
+          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
+          variants={listVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {projects.map(p => (
-            <div
+            <motion.div
               key={p.id}
+              variants={itemVariants}
               className="flex items-center gap-3 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors cursor-pointer group"
               onClick={() => { loadCounts(p.id); navigate(`/projects/${p.id}`) }}
             >
@@ -125,9 +133,9 @@ export function ProjectsPage() {
               </div>
 
               <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editProject ? 'Edit project' : 'New project'}>

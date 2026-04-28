@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine } from '@remixicon/react'
 import { format, parseISO, isToday, isPast } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -14,6 +15,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { SkListCard } from '../components/ui/Skeleton'
+import { listVariants, itemVariants } from '../lib/motion'
 
 type Status = Task['status']
 type Priority = Task['priority']
@@ -251,29 +253,37 @@ export function TasksPage() {
           action={!search && !priorityFilter && !projectFilter ? { label: '+ Add task', onClick: openAdd } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+        <motion.div
+          className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden"
+          variants={listVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {filtered.map(task => {
             const isDone = task.status === 'done'
             const isToggling = toggling === task.id
             const taskProjects = projectMap[task.id] ?? []
             const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
             return (
-              <div
+              <motion.div
                 key={task.id}
+                variants={itemVariants}
                 className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
               >
                 {/* Checkbox toggle */}
-                <button
+                <motion.button
                   onClick={() => toggleDone(task)}
                   disabled={isToggling}
                   className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
                   aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                  whileTap={{ scale: 0.75 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 >
                   {isDone
                     ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
                     : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                   }
-                </button>
+                </motion.button>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
@@ -307,10 +317,10 @@ export function TasksPage() {
                     <RiDeleteBinLine size={14} />
                   </button>
                 </div>
-              </div>
+              </motion.div>
             )
           })}
-        </div>
+        </motion.div>
       )}
 
       {/* Add / Edit modal */}

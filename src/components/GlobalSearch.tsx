@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Fuse from 'fuse.js'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   RiSearchLine, RiCloseLine, RiArrowRightSLine,
   RiBookOpenLine, RiCheckboxLine, RiFileList3Line,
@@ -121,7 +122,7 @@ export function GlobalSearch({ open, onClose }: Props) {
       ],
       threshold: 0.35,
       includeScore: true,
-      ignoreLocation: true,   // search entire body, not just the start
+      ignoreLocation: true,
       minMatchCharLength: 2,
     })
 
@@ -137,7 +138,6 @@ export function GlobalSearch({ open, onClose }: Props) {
       setQuery('')
       setResults([])
       setActiveIndex(0)
-      // Reset index on close so next open picks up fresh content
       setLoaded(false)
       fuseRef.current = null
     }
@@ -149,7 +149,6 @@ export function GlobalSearch({ open, onClose }: Props) {
 
     const q = query.toLowerCase().trim()
 
-    // 1. Exact phrase matches (title or body contains the literal query string)
     const allItems: SearchResult[] = (fuseRef.current as any)._docs ?? []
     const exactIds = new Set<string>()
     const exactMatches = allItems.filter(item => {
@@ -160,7 +159,6 @@ export function GlobalSearch({ open, onClose }: Props) {
       return hit
     })
 
-    // 2. Fuzzy matches for everything not already in exact results
     const fuzzyMatches = fuseRef.current
       .search(query)
       .map(r => r.item)
@@ -179,91 +177,115 @@ export function GlobalSearch({ open, onClose }: Props) {
     if (e.key === 'Escape') onClose()
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-
-        {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-          <RiSearchLine size={16} className="text-gray-400 shrink-0" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Search across journals, tasks, and meeting notes…"
-            className="flex-1 text-sm outline-none placeholder-gray-400 text-gray-900"
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
+          {/* Backdrop */}
+          <motion.div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={onClose}
           />
-          {query && (
-            <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600 transition p-0.5 rounded">
-              <RiCloseLine size={16} />
-            </button>
-          )}
-          <kbd className="hidden sm:inline text-xs text-gray-300 border border-gray-200 rounded px-1.5 py-0.5 font-mono">esc</kbd>
-        </div>
 
-        {/* Results */}
-        {results.length > 0 ? (
-          <ul className="max-h-[420px] overflow-y-auto py-2">
-            {results.map((r, i) => (
-              <li key={`${r.type}-${r.id}`}>
-                <button
-                  onClick={() => go(r.url)}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  className={`w-full text-left px-4 py-2.5 flex items-start gap-3 transition-colors ${
-                    i === activeIndex ? 'bg-indigo-50' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Badge variant={typeVariants[r.type]} className="mt-0.5 shrink-0 text-xs">
-                    {typeLabels[r.type]}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{r.title}</p>
-                    {r.date && <p className="text-xs text-gray-400">{r.date}</p>}
-                    {r.body && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">
-                        {excerpt(r.body, query)}
-                      </p>
-                    )}
-                  </div>
+          {/* Panel */}
+          <motion.div
+            className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden"
+            initial={{ opacity: 0, y: -12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
+            {/* Input */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+              <RiSearchLine size={16} className="text-gray-400 shrink-0" />
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Search across journals, tasks, and meeting notes…"
+                className="flex-1 text-sm outline-none placeholder-gray-400 text-gray-900"
+              />
+              {query && (
+                <button onClick={() => setQuery('')} className="text-gray-400 hover:text-gray-600 transition p-0.5 rounded">
+                  <RiCloseLine size={16} />
                 </button>
-              </li>
-            ))}
-          </ul>
-        ) : loading ? (
-          <p className="px-4 py-6 text-sm text-gray-400 text-center animate-pulse">Loading index…</p>
-        ) : query ? (
-          <p className="px-4 py-6 text-sm text-gray-400 text-center">No matches for "<span className="text-gray-600 font-medium">{query}</span>"</p>
-        ) : (
-          <div className="px-4 py-4 space-y-1">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick nav</p>
-            {[
-              { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}`, Icon: RiBookOpenLine },
-              { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine },
-              { label: 'Meeting Notes', url: '/transcripts', Icon: RiFileList3Line },
-            ].map(({ label, url, Icon }) => (
-              <button
-                key={url}
-                onClick={() => go(url)}
-                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2.5"
-              >
-                <Icon size={15} className="text-gray-400 shrink-0" />
-                {label}
-                <RiArrowRightSLine size={15} className="text-gray-300 ml-auto" />
-              </button>
-            ))}
-          </div>
-        )}
+              )}
+              <kbd className="hidden sm:inline text-xs text-gray-300 border border-gray-200 rounded px-1.5 py-0.5 font-mono">esc</kbd>
+            </div>
 
-        <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-300">
-          <span><kbd className="font-mono">↑↓</kbd> navigate</span>
-          <span><kbd className="font-mono">↵</kbd> open</span>
-          <span><kbd className="font-mono">esc</kbd> close</span>
+            {/* Results */}
+            {results.length > 0 ? (
+              <ul className="max-h-[420px] overflow-y-auto py-2">
+                <AnimatePresence initial={false}>
+                  {results.map((r, i) => (
+                    <motion.li
+                      key={`${r.type}-${r.id}`}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.14, ease: 'easeOut' }}
+                    >
+                      <button
+                        onClick={() => go(r.url)}
+                        onMouseEnter={() => setActiveIndex(i)}
+                        className={`w-full text-left px-4 py-2.5 flex items-start gap-3 transition-colors ${
+                          i === activeIndex ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <Badge variant={typeVariants[r.type]} className="mt-0.5 shrink-0 text-xs">
+                          {typeLabels[r.type]}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{r.title}</p>
+                          {r.date && <p className="text-xs text-gray-400">{r.date}</p>}
+                          {r.body && (
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">
+                              {excerpt(r.body, query)}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </ul>
+            ) : loading ? (
+              <p className="px-4 py-6 text-sm text-gray-400 text-center animate-pulse">Loading index…</p>
+            ) : query ? (
+              <p className="px-4 py-6 text-sm text-gray-400 text-center">No matches for "<span className="text-gray-600 font-medium">{query}</span>"</p>
+            ) : (
+              <div className="px-4 py-4 space-y-1">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Quick nav</p>
+                {[
+                  { label: "Today's journal", url: `/journal/${new Date().toISOString().slice(0, 10)}`, Icon: RiBookOpenLine },
+                  { label: 'Tasks', url: '/tasks', Icon: RiCheckboxLine },
+                  { label: 'Meeting Notes', url: '/transcripts', Icon: RiFileList3Line },
+                ].map(({ label, url, Icon }) => (
+                  <button
+                    key={url}
+                    onClick={() => go(url)}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors flex items-center gap-2.5"
+                  >
+                    <Icon size={15} className="text-gray-400 shrink-0" />
+                    {label}
+                    <RiArrowRightSLine size={15} className="text-gray-300 ml-auto" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-300">
+              <span><kbd className="font-mono">↑↓</kbd> navigate</span>
+              <span><kbd className="font-mono">↵</kbd> open</span>
+              <span><kbd className="font-mono">esc</kbd> close</span>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   )
 }

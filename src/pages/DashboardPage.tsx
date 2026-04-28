@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
@@ -9,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
+import { listVariants, itemVariants } from '../lib/motion'
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -186,14 +188,28 @@ export function DashboardPage() {
       {/* Productivity snapshot */}
       <section>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">This week</h3>
-        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
-          <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
-          <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
-          <StatCard label="In progress" value={inProgressCount} sub="tasks" />
-          <StatCard label="Blocked" value={blockedCount} sub="tasks" />
-          <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
-          <StatCard label="Avg rating" value={avgRating} sub="productivity" />
-        </div>
+        <motion.div
+          className="grid grid-cols-3 xl:grid-cols-6 gap-3"
+          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
+          initial="hidden"
+          animate="visible"
+        >
+          {[
+            { label: 'Completed', value: completedThisWeek, sub: 'tasks' },
+            { label: 'Open', value: openTasks.length - blockedCount, sub: 'tasks' },
+            { label: 'In progress', value: inProgressCount, sub: 'tasks' },
+            { label: 'Blocked', value: blockedCount, sub: 'tasks' },
+            { label: 'Meetings', value: meetingsThisWeek, sub: 'logged' },
+            { label: 'Avg rating', value: avgRating, sub: 'productivity' },
+          ].map(s => (
+            <motion.div
+              key={s.label}
+              variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } } }}
+            >
+              <StatCard label={s.label} value={s.value} sub={s.sub} />
+            </motion.div>
+          ))}
+        </motion.div>
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -209,22 +225,29 @@ export function DashboardPage() {
             </Card>
           ) : (
             <Card padding={false}>
-              <ul className="divide-y divide-gray-100">
+              <motion.ul
+                className="divide-y divide-gray-100"
+                variants={listVariants}
+                initial="hidden"
+                animate="visible"
+              >
                 {openTasks.map(task => {
                   const isToggling = toggling === task.id
                   return (
-                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
-                      <button
+                    <motion.li key={task.id} variants={itemVariants} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                      <motion.button
                         onClick={() => toggleDone(task)}
                         disabled={isToggling}
                         className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
                         aria-label="Mark complete"
+                        whileTap={{ scale: 0.75 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                       >
                         {isToggling
                           ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
                           : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                         }
-                      </button>
+                      </motion.button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
                         <div className="flex gap-1.5 mt-1 flex-wrap">
@@ -234,10 +257,10 @@ export function DashboardPage() {
                         </div>
                       </div>
                       <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5"><RiArrowRightSLine size={18} /></Link>
-                    </li>
+                    </motion.li>
                   )
                 })}
-              </ul>
+              </motion.ul>
             </Card>
           )}
         </section>
@@ -254,9 +277,14 @@ export function DashboardPage() {
             </Card>
           ) : (
             <Card padding={false}>
-              <ul className="divide-y divide-gray-100">
+              <motion.ul
+                className="divide-y divide-gray-100"
+                variants={listVariants}
+                initial="hidden"
+                animate="visible"
+              >
                 {recentTranscripts.map(t => (
-                  <li key={t.id} className="group">
+                  <motion.li key={t.id} variants={itemVariants} className="group">
                     <Link
                       to={`/transcripts/${t.id}`}
                       className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
@@ -268,9 +296,9 @@ export function DashboardPage() {
                       </div>
                       <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                     </Link>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </motion.ul>
             </Card>
           )}
         </section>
