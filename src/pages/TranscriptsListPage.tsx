@@ -41,15 +41,18 @@ export function TranscriptsListPage() {
 
   useEffect(() => {
     setLoading(true)
-    supabase
-      .from('transcripts')
-      .select('*')
-      .is('archived_at', null)
-      .order('created_at', { ascending: sort === 'oldest' })
-      .then(({ data }) => {
-        setTranscripts(data ?? [])
-        setLoading(false)
-      })
+    let q = supabase.from('transcripts').select('*').is('archived_at', null)
+    if (sort === 'date-desc') {
+      q = q.order('meeting_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })
+    } else if (sort === 'date-asc') {
+      q = q.order('meeting_date', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true })
+    } else {
+      q = q.order('created_at', { ascending: sort === 'oldest' })
+    }
+    q.then(({ data }) => {
+      setTranscripts(data ?? [])
+      setLoading(false)
+    })
   }, [sort])
 
   const filtered = transcripts.filter(t => {
@@ -96,9 +99,11 @@ export function TranscriptsListPage() {
 
       <div className="flex gap-3 flex-wrap">
         <Input placeholder="Search meeting notes..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
-        <Select value={sort} onChange={e => setSort(e.target.value)} className="w-40">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
+        <Select value={sort} onChange={e => setSort(e.target.value)} className="w-52">
+          <option value="newest">Created: newest first</option>
+          <option value="oldest">Created: oldest first</option>
+          <option value="date-desc">Meeting date: newest</option>
+          <option value="date-asc">Meeting date: oldest</option>
         </Select>
       </div>
 
