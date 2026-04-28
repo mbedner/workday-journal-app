@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { RiCloseLine } from '@remixicon/react'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -13,13 +14,13 @@ interface Props {
 const sizes = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' }
 
 export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop with blur — matches global search */}
+          {/* Backdrop */}
           <motion.div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -50,6 +51,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
