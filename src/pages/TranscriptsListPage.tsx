@@ -6,14 +6,13 @@ import { Transcript } from '../types'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
 
 function stripMarkup(text: string): string {
   if (!text) return ''
-  // Strip HTML tags
   let plain = text.replace(/<[^>]+>/g, ' ')
-  // Strip markdown headings, bold, italic, code, etc.
   plain = plain
     .replace(/#{1,6}\s*/g, '')
     .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
@@ -34,6 +33,11 @@ export function TranscriptsListPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
+
+  // New meeting modal
+  const [modalOpen, setModalOpen] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -61,13 +65,22 @@ export function TranscriptsListPage() {
     )
   })
 
-  const handleNew = async () => {
+  const openModal = () => {
+    setNewTitle('')
+    setModalOpen(true)
+  }
+
+  const handleCreate = async () => {
+    if (!newTitle.trim()) return
+    setCreating(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('transcripts')
-      .insert({ user_id: user!.id, meeting_title: 'New Meeting' })
+      .insert({ user_id: user!.id, meeting_title: newTitle.trim() })
       .select()
       .single()
+    setCreating(false)
+    setModalOpen(false)
     if (data) navigate(`/transcripts/${data.id}`)
   }
 
@@ -78,7 +91,7 @@ export function TranscriptsListPage() {
           <h1 className="text-xl font-bold text-gray-900">Meeting Notes</h1>
           <p className="text-sm text-gray-500">{transcripts.length} meeting{transcripts.length !== 1 ? 's' : ''} logged</p>
         </div>
-        <Button onClick={handleNew}>+ New meeting note</Button>
+        <Button onClick={openModal}>+ New meeting note</Button>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -95,7 +108,7 @@ export function TranscriptsListPage() {
         <EmptyState
           title="No meeting notes yet"
           description="Paste meeting notes here so decisions, action items, and follow-ups are easier to find later."
-          action={!search ? { label: '+ New meeting note', onClick: handleNew } : undefined}
+          action={!search ? { label: '+ New meeting note', onClick: openModal } : undefined}
         />
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
@@ -122,6 +135,26 @@ export function TranscriptsListPage() {
           ))}
         </div>
       )}
+
+      {/* New meeting modal */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New meeting note" size="sm">
+        <div className="space-y-4">
+          <Input
+            label="Meeting title"
+            value={newTitle}
+            onChange={e => setNewTitle(e.target.value)}
+            placeholder="e.g. Q2 Planning, Design Review..."
+            autoFocus
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreate} loading={creating} disabled={!newTitle.trim()}>
+              Create
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
