@@ -30,14 +30,14 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
 
           {/* Panel */}
           <motion.div
-            className={`relative bg-white rounded-2xl shadow-xl w-full ${sizes[size]} max-h-[90vh] overflow-y-auto`}
+            className={`relative bg-white rounded-2xl shadow-xl w-full ${sizes[size]} max-h-[90vh] flex flex-col`}
             initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 6 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             {title && (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h2 className="text-base font-semibold text-gray-900">{title}</h2>
                 <button
                   onClick={onClose}
@@ -47,7 +47,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
                 </button>
               </div>
             )}
-            <div className="p-6">{children}</div>
+            <div className="p-6 overflow-y-auto flex-1">{children}</div>
           </motion.div>
         </div>
       )}
