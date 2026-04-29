@@ -95,6 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             temperature: 0.5,
             maxOutputTokens: 1536,
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       }

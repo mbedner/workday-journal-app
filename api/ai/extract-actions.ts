@@ -38,6 +38,7 @@ Each array may be empty if nothing relevant was found. No other text.`
             temperature: 0.2,
             maxOutputTokens: 1024,
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       }
