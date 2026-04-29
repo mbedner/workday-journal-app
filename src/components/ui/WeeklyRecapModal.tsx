@@ -151,8 +151,31 @@ export function WeeklyRecapModal({ open, onClose }: Props) {
     }
   }
 
+  const footer = (
+    <>
+      <div>
+        {result && (
+          <Button variant="secondary" onClick={saveToJournal} loading={saving}>
+            <RiBookOpenLine size={14} className="mr-1.5" /> Save to journal
+          </Button>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Button variant="secondary" onClick={onClose}>Close</Button>
+        {result && (
+          <Button variant="secondary" onClick={copyAll}>
+            {copied === 'all'
+              ? <><RiCheckLine size={14} className="mr-1" /> Copied!</>
+              : <><RiFileCopyLine size={14} className="mr-1" /> Copy all</>
+            }
+          </Button>
+        )}
+      </div>
+    </>
+  )
+
   return (
-    <Modal open={open} onClose={onClose} title="Generate weekly recap" size="lg">
+    <Modal open={open} onClose={onClose} title="Generate weekly recap" size="lg" footer={footer}>
       <div className="space-y-4">
         {/* Date range picker */}
         <div className="flex gap-3 items-end">
@@ -191,59 +214,42 @@ export function WeeklyRecapModal({ open, onClose }: Props) {
         )}
 
         {result && (
-          <>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 divide-y divide-gray-100 max-h-[420px] overflow-y-auto">
-              {SECTIONS.map(({ label, key }) => {
-                const val = result[key]
-                const isArray = Array.isArray(val)
-                const isEmpty = !val || (isArray && (val as string[]).length === 0)
-                if (isEmpty) return null
-                return (
-                  <div key={key} className="px-4 py-3 group">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
-                      <button
-                        onClick={() => copySection(key, val as unknown as string)}
-                        className="opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-indigo-600 flex items-center gap-1 text-xs"
-                      >
-                        {copied === key
-                          ? <><RiCheckLine size={12} className="text-green-500" /> Copied</>
-                          : <><RiFileCopyLine size={12} /> Copy</>
-                        }
-                      </button>
-                    </div>
-                    {isArray ? (
-                      <ul className="space-y-1">
-                        {(val as string[]).map((item, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-700">{val as string}</p>
-                    )}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 divide-y divide-gray-100">
+            {SECTIONS.map(({ label, key }) => {
+              const val = result[key]
+              const isArray = Array.isArray(val)
+              const isEmpty = !val || (isArray && (val as string[]).length === 0)
+              if (isEmpty) return null
+              return (
+                <div key={key} className="px-4 py-3 group">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
+                    <button
+                      onClick={() => copySection(key, val as unknown as string)}
+                      className="opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-indigo-600 flex items-center gap-1 text-xs"
+                    >
+                      {copied === key
+                        ? <><RiCheckLine size={12} className="text-green-500" /> Copied</>
+                        : <><RiFileCopyLine size={12} /> Copy</>
+                      }
+                    </button>
                   </div>
-                )
-              })}
-            </div>
-
-            <div className="flex justify-between gap-2 pt-1">
-              <Button variant="secondary" onClick={saveToJournal} loading={saving}>
-                <RiBookOpenLine size={14} className="mr-1.5" /> Save to journal
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={onClose}>Close</Button>
-                <Button variant="secondary" onClick={copyAll}>
-                  {copied === 'all'
-                    ? <><RiCheckLine size={14} className="mr-1" /> Copied!</>
-                    : <><RiFileCopyLine size={14} className="mr-1" /> Copy all</>
-                  }
-                </Button>
-              </div>
-            </div>
-          </>
+                  {isArray ? (
+                    <ul className="space-y-1">
+                      {(val as string[]).map((item, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-700">{val as string}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </Modal>

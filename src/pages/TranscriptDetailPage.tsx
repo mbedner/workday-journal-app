@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { AiCleanupModal } from '../components/ui/AiCleanupModal'
-import { ExtractActionsModal } from '../components/ui/ExtractActionsModal'
+import { ExtractActionsModal, TaskPayload } from '../components/ui/ExtractActionsModal'
 import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
@@ -149,19 +149,40 @@ export function TranscriptDetailPage() {
     addToast('Task added', 'success')
   }
 
-  const addTasksBulk = async (titles: string[]) => {
+  const addTasksBulk = async (tasks: TaskPayload[]) => {
     const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('tasks').insert(
-      titles.map(title => ({
+
+    // Resolve project IDs for the transcript's associated projects
+    const projectIds = (await Promise.all(
+      selectedProjects.map(async name => {
+        let proj = allProjects.find(p => p.name === name)
+        if (!proj) { const { data } = await createProject(name); proj = data }
+        return proj?.id
+      })
+    )).filter(Boolean) as string[]
+
+    // Insert all tasks and collect their IDs
+    const { data: inserted } = await supabase.from('tasks').insert(
+      tasks.map(({ title, notes }) => ({
         user_id: user!.id,
         title,
+        notes: notes || null,
         status: 'todo',
         priority: 'medium',
         source_type: 'transcript',
         source_id: id,
       }))
-    )
-    addToast(`${titles.length} task${titles.length !== 1 ? 's' : ''} added`, 'success')
+    ).select('id')
+
+    // Link each new task to the transcript's projects
+    if (projectIds.length && inserted?.length) {
+      const rows = inserted.flatMap(({ id: taskId }) =>
+        projectIds.map(pid => ({ user_id: user!.id, task_id: taskId, project_id: pid }))
+      )
+      await supabase.from('task_projects').insert(rows)
+    }
+
+    addToast(`${tasks.length} task${tasks.length !== 1 ? 's' : ''} added`, 'success')
   }
 
   if (loading) return (

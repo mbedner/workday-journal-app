@@ -8,12 +8,13 @@ interface Props {
   onClose: () => void
   title?: string
   children: ReactNode
+  footer?: ReactNode
   size?: 'sm' | 'md' | 'lg'
 }
 
 const sizes = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' }
 
-export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
+export function Modal({ open, onClose, title, children, footer, size = 'md' }: Props) {
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -48,6 +49,11 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
               </div>
             )}
             <div className="p-6 overflow-y-auto flex-1">{children}</div>
+            {footer && (
+              <div className="shrink-0 flex items-center justify-between gap-2 px-6 py-4 border-t border-gray-100">
+                {footer}
+              </div>
+            )}
           </motion.div>
         </div>
       )}

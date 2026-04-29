@@ -54,10 +54,15 @@ export function generateWeeklyRecap(data: WeeklyRecapInput): Promise<WeeklyRecap
 
 // ─── Feature 3: Extract Action Items ─────────────────────────────────────────
 
+export interface ExtractedItem {
+  title: string
+  context: string
+}
+
 export interface ExtractedActions {
-  action_items: string[]
-  decisions: string[]
-  follow_ups: string[]
+  action_items: ExtractedItem[]
+  decisions: ExtractedItem[]
+  follow_ups: ExtractedItem[]
 }
 
 export function extractTranscriptActions(transcript: string): Promise<ExtractedActions> {
