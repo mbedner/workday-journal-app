@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const MODEL = 'gemini-2.0-flash'
+const MODEL = 'gemini-2.5-flash'
 const MAX_CHARS = 8_000
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
