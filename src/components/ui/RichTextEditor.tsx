@@ -85,7 +85,19 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
     },
     editorProps: {
       attributes: {
-        class: 'outline-none',
+        class: [
+          'outline-none px-3 py-3',
+          'prose prose-sm max-w-none',
+          'prose-headings:font-semibold prose-headings:text-gray-800',
+          'prose-h2:text-base prose-h2:mt-3 prose-h2:mb-1',
+          'prose-h3:text-sm prose-h3:mt-2 prose-h3:mb-1',
+          'prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-1',
+          'prose-ul:my-1 prose-ol:my-1 prose-li:my-0',
+          'prose-li:marker:text-gray-400 prose-li:text-gray-700',
+          'prose-blockquote:border-indigo-200 prose-blockquote:text-gray-500 prose-blockquote:my-2',
+          'prose-strong:text-gray-900',
+          'prose-code:text-indigo-700 prose-code:bg-indigo-50 prose-code:px-1 prose-code:rounded prose-code:text-xs',
+        ].join(' '),
       },
     },
   })
@@ -156,17 +168,6 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
         {/* Editor content */}
         <EditorContent
           editor={editor}
-          className="prose prose-sm max-w-none px-3 py-3
-            prose-headings:font-semibold prose-headings:text-gray-800
-            prose-h2:text-base prose-h2:mt-3 prose-h2:mb-1
-            prose-h3:text-sm prose-h3:mt-2 prose-h3:mb-1
-            prose-p:text-gray-700 prose-p:leading-relaxed prose-p:my-1
-            prose-ul:my-1 prose-ol:my-1 prose-li:my-0
-            prose-li:marker:text-gray-400 prose-li:text-gray-700
-            prose-blockquote:border-indigo-200 prose-blockquote:text-gray-500 prose-blockquote:my-2
-            prose-strong:text-gray-900
-            prose-code:text-indigo-700 prose-code:bg-indigo-50 prose-code:px-1 prose-code:rounded prose-code:text-xs
-            [&_.ProseMirror]:outline-none"
           style={{ minHeight }}
         />
       </div>
