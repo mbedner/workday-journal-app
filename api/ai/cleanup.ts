@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const MODEL = 'gemini-2.0-flash-lite'
+const MODEL = 'gemini-2.0-flash'
 const MAX_CHARS = 8_000
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -33,12 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     )
 
-    if (!response.ok) throw new Error(`Gemini ${response.status}`)
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error?.message ?? `Gemini ${response.status}`)
+    }
     const cleaned_text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
     return res.status(200).json({ cleaned_text })
   } catch (err) {
     console.error('ai/cleanup error', err)
-    return res.status(500).json({ error: 'AI assist unavailable. Try again.' })
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'AI assist unavailable. Try again.' })
   }
 }

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const MODEL = 'gemini-2.0-flash-lite'
+const MODEL = 'gemini-2.0-flash'
 
 interface JournalItem {
   date: string
@@ -32,10 +32,10 @@ function buildContext(payload: Payload): string {
     lines.push('## Journal Entries')
     for (const j of payload.journals) {
       lines.push(`### ${j.date}`)
-      if (j.focus)         lines.push(`Focus: ${strip(j.focus)}`)
-      if (j.accomplished)  lines.push(`Accomplished: ${strip(j.accomplished)}`)
+      if (j.focus)           lines.push(`Focus: ${strip(j.focus)}`)
+      if (j.accomplished)    lines.push(`Accomplished: ${strip(j.accomplished)}`)
       if (j.needs_attention) lines.push(`Still needs attention: ${strip(j.needs_attention)}`)
-      if (j.reflection)    lines.push(`Reflection: ${strip(j.reflection)}`)
+      if (j.reflection)      lines.push(`Reflection: ${strip(j.reflection)}`)
     }
   }
 
@@ -100,8 +100,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     )
 
-    if (!response.ok) throw new Error(`Gemini ${response.status}`)
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error?.message ?? `Gemini ${response.status}`)
+    }
     const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
     const parsed = JSON.parse(raw)
     return res.status(200).json({
@@ -114,6 +116,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
   } catch (err) {
     console.error('ai/weekly-recap error', err)
-    return res.status(500).json({ error: 'AI assist unavailable. Try again.' })
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'AI assist unavailable. Try again.' })
   }
 }

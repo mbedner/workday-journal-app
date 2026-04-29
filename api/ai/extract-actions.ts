@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const MODEL = 'gemini-2.0-flash-lite'
+const MODEL = 'gemini-2.0-flash'
 const MAX_CHARS = 12_000
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -43,8 +43,10 @@ Each array may be empty if nothing relevant was found. No other text.`
       }
     )
 
-    if (!response.ok) throw new Error(`Gemini ${response.status}`)
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.error?.message ?? `Gemini ${response.status}`)
+    }
     const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}'
     const parsed = JSON.parse(raw)
     return res.status(200).json({
@@ -54,6 +56,6 @@ Each array may be empty if nothing relevant was found. No other text.`
     })
   } catch (err) {
     console.error('ai/extract-actions error', err)
-    return res.status(500).json({ error: 'AI assist unavailable. Try again.' })
+    return res.status(500).json({ error: err instanceof Error ? err.message : 'AI assist unavailable. Try again.' })
   }
 }
