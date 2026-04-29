@@ -120,7 +120,7 @@ export function ExtractActionsModal({ open, onClose, transcript, onAddTasks }: P
                             }`}
                           >
                             <span className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                              isSelected ? 'bg-current border-current text-white' : 'border-gray-300'
+                              isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
                             }`}>
                               {isSelected && (
                                 <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
