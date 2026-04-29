@@ -4,12 +4,13 @@ import { motion } from 'framer-motion'
 import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
-import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine } from '@remixicon/react'
+import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine, RiSparklingLine } from '@remixicon/react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
+import { WeeklyRecapModal } from '../components/ui/WeeklyRecapModal'
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -54,6 +55,7 @@ export function DashboardPage() {
   const [weekEntries, setWeekEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [recapOpen, setRecapOpen] = useState(false)
 
   useEffect(() => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -186,7 +188,15 @@ export function DashboardPage() {
 
       {/* Productivity snapshot */}
       <section>
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">This week</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">This week</h3>
+          <button
+            onClick={() => setRecapOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition font-medium"
+          >
+            <RiSparklingLine size={13} /> Weekly recap
+          </button>
+        </div>
         <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
           <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
           <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
@@ -278,6 +288,8 @@ export function DashboardPage() {
           )}
         </section>
       </div>
+
+      <WeeklyRecapModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>
   )
 }

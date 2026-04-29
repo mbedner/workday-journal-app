@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { RiArrowLeftLine, RiPencilLine } from '@remixicon/react'
+import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
@@ -10,11 +10,14 @@ import { TagInput } from '../components/ui/TagInput'
 import { Badge } from '../components/ui/Badge'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { RichTextEditor } from '../components/ui/RichTextEditor'
+import { AiCleanupModal } from '../components/ui/AiCleanupModal'
 import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../contexts/ToastContext'
+
+type CleanupField = 'focus' | 'accomplished' | 'needsAttention' | 'reflection'
 
 export function JournalDetailPage() {
   const { date } = useParams<{ date: string }>()
@@ -39,6 +42,12 @@ export function JournalDetailPage() {
   const [taskModal, setTaskModal] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
   const [addingTask, setAddingTask] = useState(false)
+
+  const [cleanupField, setCleanupField] = useState<CleanupField | null>(null)
+  const cleanupValue = cleanupField === 'focus' ? focus
+    : cleanupField === 'accomplished' ? accomplished
+    : cleanupField === 'needsAttention' ? needsAttention
+    : cleanupField === 'reflection' ? reflection : ''
 
   const entryId = useRef<string | null>(null)
 
@@ -295,34 +304,46 @@ export function JournalDetailPage() {
       </div>
 
       <div className="space-y-5">
-        <RichTextEditor
-          label="Today's focus"
-          value={focus}
-          onChange={setFocus}
-          placeholder="What's the most important thing to accomplish today?"
-          minHeight={90}
-        />
-        <RichTextEditor
-          label="Accomplished"
-          value={accomplished}
-          onChange={setAccomplished}
-          placeholder="What did you get done? What moved forward?"
-          minHeight={140}
-        />
-        <RichTextEditor
-          label="Still needs attention"
-          value={needsAttention}
-          onChange={setNeedsAttention}
-          placeholder="What didn't get done? What's carrying over?"
-          minHeight={110}
-        />
-        <RichTextEditor
-          label="End-of-day reflection"
-          value={reflection}
-          onChange={setReflection}
-          placeholder="How did the day go? What would you do differently?"
-          minHeight={110}
-        />
+        <div>
+          <RichTextEditor
+            label="Today's focus"
+            value={focus}
+            onChange={setFocus}
+            placeholder="What's the most important thing to accomplish today?"
+            minHeight={90}
+          />
+          {focus && <CleanupButton onClick={() => setCleanupField('focus')} />}
+        </div>
+        <div>
+          <RichTextEditor
+            label="Accomplished"
+            value={accomplished}
+            onChange={setAccomplished}
+            placeholder="What did you get done? What moved forward?"
+            minHeight={140}
+          />
+          {accomplished && <CleanupButton onClick={() => setCleanupField('accomplished')} />}
+        </div>
+        <div>
+          <RichTextEditor
+            label="Still needs attention"
+            value={needsAttention}
+            onChange={setNeedsAttention}
+            placeholder="What didn't get done? What's carrying over?"
+            minHeight={110}
+          />
+          {needsAttention && <CleanupButton onClick={() => setCleanupField('needsAttention')} />}
+        </div>
+        <div>
+          <RichTextEditor
+            label="End-of-day reflection"
+            value={reflection}
+            onChange={setReflection}
+            placeholder="How did the day go? What would you do differently?"
+            minHeight={110}
+          />
+          {reflection && <CleanupButton onClick={() => setCleanupField('reflection')} />}
+        </div>
 
         <div>
           <label className="text-sm font-medium text-gray-700 block mb-1.5">Productivity rating</label>
@@ -361,6 +382,31 @@ export function JournalDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <AiCleanupModal
+        open={cleanupField !== null}
+        onClose={() => setCleanupField(null)}
+        original={cleanupValue}
+        onReplace={text => {
+          if (cleanupField === 'focus')         setFocus(text)
+          if (cleanupField === 'accomplished')  setAccomplished(text)
+          if (cleanupField === 'needsAttention') setNeedsAttention(text)
+          if (cleanupField === 'reflection')    setReflection(text)
+        }}
+      />
     </div>
+  )
+}
+
+function CleanupButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-1.5 flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition"
+    >
+      <RiSparklingLine size={12} />
+      Clean up writing
+    </button>
   )
 }
