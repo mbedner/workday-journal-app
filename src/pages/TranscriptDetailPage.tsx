@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { RiArrowLeftLine, RiPencilLine } from '@remixicon/react'
+import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
@@ -10,6 +10,8 @@ import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
+import { AiCleanupModal } from '../components/ui/AiCleanupModal'
+import { ExtractActionsModal } from '../components/ui/ExtractActionsModal'
 import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
@@ -29,6 +31,8 @@ export function TranscriptDetailPage() {
   const [taskModal, setTaskModal] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
   const [addingTask, setAddingTask] = useState(false)
+  const [extractModal, setExtractModal] = useState(false)
+  const [cleanupModal, setCleanupModal] = useState(false)
 
   const [title, setTitle] = useState('')
   const [meetingDate, setMeetingDate] = useState('')
@@ -145,6 +149,21 @@ export function TranscriptDetailPage() {
     addToast('Task added', 'success')
   }
 
+  const addTasksBulk = async (titles: string[]) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('tasks').insert(
+      titles.map(title => ({
+        user_id: user!.id,
+        title,
+        status: 'todo',
+        priority: 'medium',
+        source_type: 'transcript',
+        source_id: id,
+      }))
+    )
+    addToast(`${titles.length} task${titles.length !== 1 ? 's' : ''} added`, 'success')
+  }
+
   if (loading) return (
     <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
       <div className="space-y-2">
@@ -185,6 +204,9 @@ export function TranscriptDetailPage() {
             )}
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" onClick={() => setExtractModal(true)}>
+              <RiSparklingLine size={14} className="mr-1" /> Extract actions
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => setTaskModal(true)}>+ Add task</Button>
             <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
               <RiPencilLine size={14} className="mr-1" /> Edit
@@ -250,6 +272,20 @@ export function TranscriptDetailPage() {
             </div>
           </div>
         </Modal>
+
+        {/* AI modals */}
+        <ExtractActionsModal
+          open={extractModal}
+          onClose={() => setExtractModal(false)}
+          transcript={content}
+          onAddTasks={addTasksBulk}
+        />
+        <AiCleanupModal
+          open={cleanupModal}
+          onClose={() => setCleanupModal(false)}
+          original={content}
+          onReplace={setContent}
+        />
       </div>
     )
   }
@@ -280,13 +316,24 @@ export function TranscriptDetailPage() {
         </div>
         <TagInput label="Projects" values={selectedProjects} suggestions={allProjects.map(p => p.name)} onChange={setSelectedProjects} placeholder="Add project..." />
         <TagInput label="Tags" values={selectedTags} suggestions={allTags.map(t => t.name)} onChange={setSelectedTags} placeholder="Add tag..." />
-        <RichTextEditor
-          label="Notes"
-          value={content}
-          onChange={setContent}
-          placeholder="Paste your AI summary, transcript, decisions, action items — whatever you need..."
-          minHeight={400}
-        />
+        <div>
+          <RichTextEditor
+            label="Notes"
+            value={content}
+            onChange={setContent}
+            placeholder="Paste your AI summary, transcript, decisions, action items — whatever you need..."
+            minHeight={400}
+          />
+          {content && (
+            <button
+              type="button"
+              onClick={() => setCleanupModal(true)}
+              className="mt-1.5 flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition"
+            >
+              <RiSparklingLine size={12} /> Clean up writing
+            </button>
+          )}
+        </div>
       </div>
 
       <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add task">
@@ -315,6 +362,13 @@ export function TranscriptDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <AiCleanupModal
+        open={cleanupModal}
+        onClose={() => setCleanupModal(false)}
+        original={content}
+        onReplace={setContent}
+      />
     </div>
   )
 }
