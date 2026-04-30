@@ -67,6 +67,16 @@ export interface Tag {
   created_at: string
 }
 
+export interface Subtask {
+  id: string
+  task_id: string
+  user_id: string
+  title: string
+  completed: boolean
+  position: number
+  created_at: string
+}
+
 export interface SearchResult {
   id: string
   type: 'journal' | 'task' | 'transcript'

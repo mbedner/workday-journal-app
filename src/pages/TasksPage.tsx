@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine } from '@remixicon/react'
+import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine } from '@remixicon/react'
 import { format, parseISO, isToday, isPast } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import { Task } from '../types'
+import { Task, Subtask } from '../types'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
@@ -46,6 +46,10 @@ export function TasksPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
+  const [subtaskMap, setSubtaskMap] = useState<Record<string, Subtask[]>>({})
+  const [modalSubtasks, setModalSubtasks] = useState<Subtask[]>([])
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
+  const [subtaskAdding, setSubtaskAdding] = useState(false)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('open')
   const [priorityFilter, setPriorityFilter] = useState('')
@@ -72,12 +76,15 @@ export function TasksPage() {
         .range(from, from + PAGE_SIZE - 1),
       supabase.from('task_projects').select('task_id, projects(name)'),
     ])
+    const loadedTasks = taskData ?? []
+
     if (replace) {
-      setTasks(taskData ?? [])
+      setTasks(loadedTasks)
       setTotalCount(count ?? 0)
     } else {
-      setTasks(prev => [...prev, ...(taskData ?? [])])
+      setTasks(prev => [...prev, ...loadedTasks])
     }
+
     // Build projectMap: taskId → [project names]
     const map: ProjectMap = {}
     for (const row of (tpData ?? []) as any[]) {
@@ -86,6 +93,20 @@ export function TasksPage() {
       map[row.task_id].push(row.projects.name)
     }
     setProjectMap(map)
+
+    // Fetch subtasks for this page of tasks
+    if (loadedTasks.length > 0) {
+      const ids = loadedTasks.map((t: Task) => t.id)
+      const { data: stData } = await supabase
+        .from('subtasks').select('*').in('task_id', ids).order('position')
+      const stMap: Record<string, Subtask[]> = {}
+      for (const s of (stData ?? []) as Subtask[]) {
+        if (!stMap[s.task_id]) stMap[s.task_id] = []
+        stMap[s.task_id].push(s)
+      }
+      setSubtaskMap(prev => replace ? stMap : { ...prev, ...stMap })
+    }
+
     if (replace) setLoading(false)
     else setLoadingMore(false)
   }
@@ -110,7 +131,40 @@ export function TasksPage() {
     setEditTask(t)
     setForm({ title: t.title, notes: t.notes ?? '', status: t.status, priority: t.priority, due_date: t.due_date ?? '' })
     setSelectedProjects(projectMap[t.id] ?? [])
+    setModalSubtasks(subtaskMap[t.id] ?? [])
+    setNewSubtaskTitle('')
     setModalOpen(true)
+  }
+
+  const addSubtask = async () => {
+    if (!newSubtaskTitle.trim() || !editTask) return
+    setSubtaskAdding(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const position = modalSubtasks.length
+    const { data } = await supabase
+      .from('subtasks')
+      .insert({ task_id: editTask.id, user_id: user!.id, title: newSubtaskTitle.trim(), completed: false, position })
+      .select().single()
+    if (data) {
+      const newSub = data as Subtask
+      setModalSubtasks(prev => [...prev, newSub])
+      setSubtaskMap(prev => ({ ...prev, [editTask.id]: [...(prev[editTask.id] ?? []), newSub] }))
+      setNewSubtaskTitle('')
+    }
+    setSubtaskAdding(false)
+  }
+
+  const toggleSubtask = async (sub: Subtask) => {
+    const updated = { ...sub, completed: !sub.completed }
+    await supabase.from('subtasks').update({ completed: updated.completed }).eq('id', sub.id)
+    setModalSubtasks(prev => prev.map(s => s.id === sub.id ? updated : s))
+    setSubtaskMap(prev => ({ ...prev, [sub.task_id]: (prev[sub.task_id] ?? []).map(s => s.id === sub.id ? updated : s) }))
+  }
+
+  const deleteSubtask = async (sub: Subtask) => {
+    await supabase.from('subtasks').delete().eq('id', sub.id)
+    setModalSubtasks(prev => prev.filter(s => s.id !== sub.id))
+    setSubtaskMap(prev => ({ ...prev, [sub.task_id]: (prev[sub.task_id] ?? []).filter(s => s.id !== sub.id) }))
   }
 
   const submit = async () => {
@@ -322,6 +376,12 @@ export function TasksPage() {
                     {task.notes && (
                       <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{task.notes}</span>
                     )}
+                    {(subtaskMap[task.id]?.length ?? 0) > 0 && (
+                      <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                        <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                        {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -376,6 +436,61 @@ export function TasksPage() {
             </Select>
           </div>
           <Input label="Due date" type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
+
+          {editTask && (
+            <div>
+              <p className="text-xs font-medium text-gray-700 mb-2">Subtasks</p>
+              {modalSubtasks.length > 0 && (
+                <div className="space-y-1 mb-3">
+                  {modalSubtasks.map(sub => (
+                    <div key={sub.id} className="flex items-center gap-2 group/sub py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleSubtask(sub)}
+                        className="shrink-0 transition-colors"
+                        aria-label={sub.completed ? 'Mark incomplete' : 'Mark complete'}
+                      >
+                        {sub.completed
+                          ? <RiCheckboxCircleLine size={16} className="text-indigo-500" />
+                          : <RiCircleLine size={16} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                        }
+                      </button>
+                      <span className={`text-sm flex-1 leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                        {sub.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => deleteSubtask(sub)}
+                        className="opacity-0 group-hover/sub:opacity-100 transition-opacity p-0.5 text-gray-400 hover:text-red-500 rounded"
+                        aria-label="Remove subtask"
+                      >
+                        <RiCloseLine size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={newSubtaskTitle}
+                  onChange={e => setNewSubtaskTitle(e.target.value)}
+                  placeholder="Add a subtask..."
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtask() } }}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addSubtask}
+                  loading={subtaskAdding}
+                  disabled={!newSubtaskTitle.trim()}
+                >
+                  <RiAddLine size={14} />
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={submit} loading={submitting} disabled={!form.title.trim()}>
