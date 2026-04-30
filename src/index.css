@@ -21,8 +21,8 @@
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-*:hover {
-  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+.is-scrolling {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 
 /* WebKit (Chrome, Safari, Edge) */
@@ -36,16 +36,10 @@
 ::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 99px;
-  transition: background 0.2s ease;
+  transition: background 0.4s ease;
 }
 
-/* Show on hover of any scrollable ancestor */
-*:hover > ::-webkit-scrollbar-thumb,
-*:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
-}
-
-/* Keep visible while actively scrolling (class toggled by JS below) */
+/* Only visible while actively scrolling */
 .is-scrolling::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.2);
 }
