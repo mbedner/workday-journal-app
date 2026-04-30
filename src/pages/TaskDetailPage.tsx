@@ -276,36 +276,47 @@ export function TaskDetailPage() {
   )
 
   // ── View mode ────────────────────────────────────────────────────────────
+  const subtaskPct = subtasks.length ? Math.round((completedSubs / subtasks.length) * 100) : 0
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0">
           <button
             onClick={() => navigate('/tasks')}
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-2"
           >
             <RiArrowLeftLine size={13} /> All tasks
           </button>
-          <div className="flex items-start gap-3">
-            <motion.button
-              onClick={toggleDone}
-              disabled={toggling}
-              className="mt-1 shrink-0 disabled:opacity-40"
-              whileTap={{ scale: 0.75 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-            >
-              {isDone
-                ? <RiCheckboxCircleLine size={22} className="text-indigo-500" />
-                : <RiCircleLine size={22} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-              }
-            </motion.button>
-            <h1 className={`text-2xl font-bold leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-              {task.title}
-            </h1>
+          <h1 className={`text-2xl font-bold leading-snug ${isDone ? 'text-gray-400' : 'text-gray-900'}`}>
+            {task.title}
+          </h1>
+          {/* Meta line */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <Badge variant={statusVariants[task.status]}>{task.status.replace('_', ' ')}</Badge>
+            <Badge variant={priorityVariants[task.priority]}>{task.priority} priority</Badge>
+            {task.due_date && (
+              <>
+                <span className="text-gray-200">·</span>
+                <span className={`text-sm ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                  {isOverdue ? 'Overdue — was due ' : 'Due '}
+                  {format(parseISO(task.due_date), 'MMMM d, yyyy')}
+                </span>
+              </>
+            )}
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <motion.div whileTap={{ scale: 0.95 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+            <Button variant="secondary" size="sm" onClick={toggleDone} disabled={toggling}>
+              {isDone
+                ? <><RiCircleLine size={14} className="mr-1" /> Reopen</>
+                : <><RiCheckboxCircleLine size={14} className="mr-1" /> Mark complete</>
+              }
+            </Button>
+          </motion.div>
           <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
             <RiPencilLine size={14} className="mr-1" /> Edit
           </Button>
@@ -313,27 +324,20 @@ export function TaskDetailPage() {
         </div>
       </div>
 
-      {/* Meta */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <Badge variant={statusVariants[task.status]}>{task.status.replace('_', ' ')}</Badge>
-        <Badge variant={priorityVariants[task.priority]}>{task.priority} priority</Badge>
-        {task.due_date && (
-          <span className={`text-sm ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
-            {isOverdue ? 'Overdue · ' : isDone ? 'Was due ' : 'Due '}
-            {format(parseISO(task.due_date), 'MMMM d, yyyy')}
-          </span>
-        )}
-        {isDone && task.completed_at && (
-          <span className="text-sm text-gray-400">
+      {/* Completion / overdue callout */}
+      {isDone && task.completed_at && (
+        <div className="flex items-center gap-2.5 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+          <RiCheckboxCircleLine size={16} className="text-green-500 shrink-0" />
+          <p className="text-sm text-green-700 font-medium">
             Completed {format(parseISO(task.completed_at), 'MMMM d, yyyy')}
-          </span>
-        )}
-      </div>
-
-      {/* Projects */}
-      {selectedProjects.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap">
-          {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+          </p>
+        </div>
+      )}
+      {isOverdue && (
+        <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <p className="text-sm text-red-600 font-medium">
+            This task is overdue — it was due {format(parseISO(task.due_date!), 'MMMM d, yyyy')}.
+          </p>
         </div>
       )}
 
@@ -348,24 +352,47 @@ export function TaskDetailPage() {
       {/* Subtasks */}
       {subtasks.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Subtasks</p>
-            <span className="text-xs text-gray-400">{completedSubs}/{subtasks.length}</span>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+              Subtasks
+            </p>
+            <span className="text-xs text-gray-400">{completedSubs} of {subtasks.length} done</span>
           </div>
-          <div className="space-y-1">
+          {/* Progress bar */}
+          <div className="h-1 bg-gray-100 rounded-full mb-3 overflow-hidden">
+            <div
+              className="h-full bg-indigo-400 rounded-full transition-all duration-300"
+              style={{ width: `${subtaskPct}%` }}
+            />
+          </div>
+          <div className="space-y-0.5">
             {subtasks.map(sub => (
-              <div key={sub.id} className="flex items-center gap-2.5 py-1">
-                <button onClick={() => toggleSubtask(sub)} className="shrink-0">
+              <div
+                key={sub.id}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => toggleSubtask(sub)}
+              >
+                <button className="shrink-0" onClick={e => { e.stopPropagation(); toggleSubtask(sub) }}>
                   {sub.completed
                     ? <RiCheckboxCircleLine size={17} className="text-indigo-500" />
                     : <RiCircleLine size={17} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                   }
                 </button>
-                <span className={`text-sm ${sub.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                <span className={`text-sm select-none ${sub.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                   {sub.title}
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Projects — bottom, separated */}
+      {selectedProjects.length > 0 && (
+        <div className="pt-4 border-t border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Projects</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
           </div>
         </div>
       )}
