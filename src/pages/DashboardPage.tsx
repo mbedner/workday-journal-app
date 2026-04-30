@@ -240,131 +240,116 @@ export function DashboardPage() {
         </Card>
       </section>
 
-      {/* Calendar (left) + sidebar: stats + recent meetings (right) */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-
-        {/* Calendar — wider left column */}
-        <section className="xl:col-span-3">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Calendar</h3>
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Journal</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Meetings</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Tasks</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />Completed</span>
-            </div>
-          </div>
-          <CalendarView items={calendarItems} />
-        </section>
-
-        {/* Right sidebar */}
-        <div className="xl:col-span-2 space-y-6">
-
-          {/* This week stats */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">This week</h3>
-              <button
-                onClick={() => setRecapOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition font-medium"
-              >
-                <RiSparklingLine size={13} /> Recap
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
-              <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
-              <StatCard label="In progress" value={inProgressCount} sub="tasks" />
-              <StatCard label="Blocked" value={blockedCount} sub="tasks" />
-              <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
-              <StatCard label="Avg rating" value={avgRating} sub="productivity" />
-            </div>
-          </section>
-
-          {/* Recent meetings */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recent Meetings</h3>
-              <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
-            </div>
-            {recentTranscripts.length === 0 ? (
-              <Card>
-                <p className="text-sm text-gray-400 text-center py-4">No meeting notes yet.</p>
-              </Card>
-            ) : (
-              <Card padding={false}>
-                <ul className="divide-y divide-gray-100">
-                  {recentTranscripts.map(t => (
-                    <li key={t.id} className="group">
-                      <Link
-                        to={`/transcripts/${t.id}`}
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>
-                          {t.meeting_date && <p className="text-xs text-gray-400">{t.meeting_date}</p>}
-                          {t.summary && <p className="text-xs text-gray-500 truncate mt-0.5">{t.summary}</p>}
-                        </div>
-                        <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            )}
-          </section>
-
-        </div>
-      </div>
-
-      {/* Open tasks — full width */}
+      {/* This week stats — full width */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Open Tasks</h3>
-          <Link to="/tasks" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">This week</h3>
+          <button
+            onClick={() => setRecapOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition font-medium"
+          >
+            <RiSparklingLine size={13} /> Weekly recap
+          </button>
         </div>
-        {openTasks.length === 0 ? (
-          <Card>
-            <p className="text-sm text-gray-400 text-center py-4">No open tasks. Great work!</p>
-          </Card>
-        ) : (
-          <Card padding={false}>
-            <ul className="divide-y divide-gray-100">
-              {openTasks.map(task => {
-                const isToggling = toggling === task.id
-                return (
-                  <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
-                    <motion.button
-                      onClick={() => toggleDone(task)}
-                      disabled={isToggling}
-                      className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
-                      aria-label="Mark complete"
-                      whileTap={{ scale: 0.75 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                    >
-                      {isToggling
-                        ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
-                        : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                      }
-                    </motion.button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
-                      <div className="flex gap-1.5 mt-1 flex-wrap">
-                        <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
-                        <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
-                        {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
+          <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
+          <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
+          <StatCard label="In progress" value={inProgressCount} sub="tasks" />
+          <StatCard label="Blocked" value={blockedCount} sub="tasks" />
+          <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
+          <StatCard label="Avg rating" value={avgRating} sub="productivity" />
+        </div>
+      </section>
+
+      {/* Calendar — full width */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Calendar</h3>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Journal</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Meetings</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Tasks</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />Completed</span>
+          </div>
+        </div>
+        <CalendarView items={calendarItems} />
+      </section>
+
+      {/* Open tasks + Recent meetings — side by side */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Open Tasks</h3>
+            <Link to="/tasks" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+          </div>
+          {openTasks.length === 0 ? (
+            <Card><p className="text-sm text-gray-400 text-center py-4">No open tasks. Great work!</p></Card>
+          ) : (
+            <Card padding={false}>
+              <ul className="divide-y divide-gray-100">
+                {openTasks.map(task => {
+                  const isToggling = toggling === task.id
+                  return (
+                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                      <motion.button
+                        onClick={() => toggleDone(task)}
+                        disabled={isToggling}
+                        className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
+                        aria-label="Mark complete"
+                        whileTap={{ scale: 0.75 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                      >
+                        {isToggling
+                          ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
+                          : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                        }
+                      </motion.button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                          <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
+                          <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
+                          {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
-                      <RiArrowRightSLine size={18} />
+                      <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
+                        <RiArrowRightSLine size={18} />
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recent Meetings</h3>
+            <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+          </div>
+          {recentTranscripts.length === 0 ? (
+            <Card><p className="text-sm text-gray-400 text-center py-4">No meeting notes yet. Paste your first meeting summary.</p></Card>
+          ) : (
+            <Card padding={false}>
+              <ul className="divide-y divide-gray-100">
+                {recentTranscripts.map(t => (
+                  <li key={t.id} className="group">
+                    <Link to={`/transcripts/${t.id}`} className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>
+                        {t.meeting_date && <p className="text-xs text-gray-400">{t.meeting_date}</p>}
+                        {t.summary && <p className="text-xs text-gray-500 truncate mt-0.5">{t.summary}</p>}
+                      </div>
+                      <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
                     </Link>
                   </li>
-                )
-              })}
-            </ul>
-          </Card>
-        )}
-      </section>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </section>
+      </div>
 
       <WeeklyRecapModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>
