@@ -4,6 +4,7 @@ import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
+import { useProjects } from '../hooks/useProjects'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -36,14 +37,21 @@ function monthLabel(t: Transcript): string {
   try { return format(new Date(dateStr + 'T12:00:00'), 'MMMM yyyy') } catch { return 'Unknown' }
 }
 
+// transcriptId → [project names]
+type ProjectMap = Record<string, string[]>
+
 export function TranscriptsListPage() {
   const navigate = useNavigate()
+  const { projects: allProjects } = useProjects()
+
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('date-desc')
+  const [projectFilter, setProjectFilter] = useState('')
+  const [projectMap, setProjectMap] = useState<ProjectMap>({})
 
   const [modalOpen, setModalOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -61,11 +69,28 @@ export function TranscriptsListPage() {
     return q.range(from, to)
   }
 
+  // Fetch project associations for all transcripts (global, not paginated)
+  const fetchProjectMap = async () => {
+    const { data } = await supabase
+      .from('transcript_projects')
+      .select('transcript_id, projects(name)')
+    const map: ProjectMap = {}
+    for (const row of (data ?? []) as any[]) {
+      if (!row.transcript_id || !row.projects?.name) continue
+      if (!map[row.transcript_id]) map[row.transcript_id] = []
+      map[row.transcript_id].push(row.projects.name)
+    }
+    setProjectMap(map)
+  }
+
   // Reset and re-fetch when sort changes
   useEffect(() => {
     setLoading(true)
     setTranscripts([])
-    buildQuery(0, PAGE_SIZE - 1).then(({ data, count }) => {
+    Promise.all([
+      buildQuery(0, PAGE_SIZE - 1),
+      fetchProjectMap(),
+    ]).then(([{ data, count }]) => {
       setTranscripts(data ?? [])
       setTotalCount(count ?? 0)
       setLoading(false)
@@ -83,6 +108,10 @@ export function TranscriptsListPage() {
 
   // Client-side filter across loaded records
   const filtered = useMemo(() => transcripts.filter(t => {
+    if (projectFilter) {
+      const tProjects = projectMap[t.id] ?? []
+      if (!tProjects.includes(projectFilter)) return false
+    }
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -93,11 +122,11 @@ export function TranscriptsListPage() {
       t.action_items?.toLowerCase().includes(q) ||
       t.raw_transcript?.toLowerCase().includes(q)
     )
-  }), [transcripts, search])
+  }), [transcripts, search, projectFilter, projectMap])
 
-  // Group by month when not searching
+  // Group by month when not searching/filtering
   const grouped = useMemo(() => {
-    if (search) return null
+    if (search || projectFilter) return null
     const groups = new Map<string, Transcript[]>()
     for (const t of filtered) {
       const key = monthLabel(t)
@@ -105,7 +134,7 @@ export function TranscriptsListPage() {
       groups.get(key)!.push(t)
     }
     return Array.from(groups.entries())
-  }, [filtered, search])
+  }, [filtered, search, projectFilter])
 
   const openModal = () => { setNewTitle(''); setModalOpen(true) }
 
@@ -123,30 +152,36 @@ export function TranscriptsListPage() {
     if (data) navigate(`/transcripts/${data.id}`)
   }
 
-  const TranscriptRow = ({ t }: { t: Transcript }) => (
-    <Link
-      to={`/transcripts/${t.id}`}
-      className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
-        <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
-          {t.meeting_date && <span>{t.meeting_date}</span>}
-          {t.attendees && <span className="truncate">{t.attendees}</span>}
+  const TranscriptRow = ({ t }: { t: Transcript }) => {
+    const tProjects = projectMap[t.id] ?? []
+    return (
+      <Link
+        to={`/transcripts/${t.id}`}
+        className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
+          <div className="flex gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
+            {t.meeting_date && <span>{t.meeting_date}</span>}
+            {t.attendees && <span className="truncate">{t.attendees}</span>}
+            {tProjects.map(p => (
+              <span key={p} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+            ))}
+          </div>
+          {(t.summary || t.raw_transcript) && (
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+              {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
+            </p>
+          )}
         </div>
-        {(t.summary || t.raw_transcript) && (
-          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-            {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
-          </p>
-        )}
-      </div>
-      <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-    </Link>
-  )
+        <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+      </Link>
+    )
+  }
 
   const subtitle = loading
     ? 'Loading…'
-    : search
+    : search || projectFilter
       ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${transcripts.length} loaded)` : ''}`
       : `${totalCount} meeting${totalCount !== 1 ? 's' : ''} logged`
 
@@ -162,6 +197,12 @@ export function TranscriptsListPage() {
 
       <div className="flex gap-3 flex-wrap">
         <Input placeholder="Search meeting notes..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
+        {allProjects.length > 0 && (
+          <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-44">
+            <option value="">All projects</option>
+            {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+          </Select>
+        )}
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-52">
           <option value="newest">Created: newest first</option>
           <option value="oldest">Created: oldest first</option>
@@ -176,7 +217,7 @@ export function TranscriptsListPage() {
         <EmptyState
           title="No meeting notes yet"
           description="Paste meeting notes here so decisions, action items, and follow-ups are easier to find later."
-          action={!search ? { label: '+ New meeting note', onClick: openModal } : undefined}
+          action={!search && !projectFilter ? { label: '+ New meeting note', onClick: openModal } : undefined}
         />
       ) : grouped ? (
         /* Grouped by month view */
@@ -203,7 +244,7 @@ export function TranscriptsListPage() {
           )}
         </div>
       ) : (
-        /* Flat search results */
+        /* Flat search/filter results */
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(t => <TranscriptRow key={t.id} t={t} />)}
         </div>

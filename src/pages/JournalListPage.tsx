@@ -4,6 +4,7 @@ import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
+import { useProjects } from '../hooks/useProjects'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -29,33 +30,55 @@ function stripMarkup(text: string): string {
     .trim()
 }
 
+// entryId → [project names]
+type ProjectMap = Record<string, string[]>
+
 export function JournalListPage() {
   const navigate = useNavigate()
+  const { projects: allProjects } = useProjects()
+
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [ratingFilter, setRatingFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
+  const [projectMap, setProjectMap] = useState<ProjectMap>({})
 
   const today = format(new Date(), 'yyyy-MM-dd')
+
+  const fetchProjectMap = async () => {
+    const { data } = await supabase
+      .from('journal_entry_projects')
+      .select('journal_entry_id, projects(name)')
+    const map: ProjectMap = {}
+    for (const row of (data ?? []) as any[]) {
+      if (!row.journal_entry_id || !row.projects?.name) continue
+      if (!map[row.journal_entry_id]) map[row.journal_entry_id] = []
+      map[row.journal_entry_id].push(row.projects.name)
+    }
+    setProjectMap(map)
+  }
 
   // Reset and re-fetch when sort changes
   useEffect(() => {
     setLoading(true)
     setEntries([])
-    supabase
-      .from('journal_entries')
-      .select('*', { count: 'exact' })
-      .is('archived_at', null)
-      .order('entry_date', { ascending: sort === 'oldest' })
-      .range(0, PAGE_SIZE - 1)
-      .then(({ data, count }) => {
-        setEntries(data ?? [])
-        setTotalCount(count ?? 0)
-        setLoading(false)
-      })
+    Promise.all([
+      supabase
+        .from('journal_entries')
+        .select('*', { count: 'exact' })
+        .is('archived_at', null)
+        .order('entry_date', { ascending: sort === 'oldest' })
+        .range(0, PAGE_SIZE - 1),
+      fetchProjectMap(),
+    ]).then(([{ data, count }]) => {
+      setEntries(data ?? [])
+      setTotalCount(count ?? 0)
+      setLoading(false)
+    })
   }, [sort])
 
   const loadMore = async () => {
@@ -75,6 +98,10 @@ export function JournalListPage() {
   // Client-side filter across loaded entries
   const filtered = useMemo(() => entries.filter(e => {
     if (ratingFilter && e.productivity_rating !== parseInt(ratingFilter)) return false
+    if (projectFilter) {
+      const eProjects = projectMap[e.id] ?? []
+      if (!eProjects.includes(projectFilter)) return false
+    }
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -86,11 +113,11 @@ export function JournalListPage() {
       )
     }
     return true
-  }), [entries, search, ratingFilter])
+  }), [entries, search, ratingFilter, projectFilter, projectMap])
 
-  // Group by month/year when not searching
+  // Group by month/year when not filtering
   const grouped = useMemo(() => {
-    if (search || ratingFilter) return null
+    if (search || ratingFilter || projectFilter) return null
     const groups = new Map<string, JournalEntry[]>()
     for (const entry of filtered) {
       const key = format(new Date(entry.entry_date + 'T12:00:00'), 'MMMM yyyy')
@@ -98,38 +125,46 @@ export function JournalListPage() {
       groups.get(key)!.push(entry)
     }
     return Array.from(groups.entries())
-  }, [filtered, search, ratingFilter])
+  }, [filtered, search, ratingFilter, projectFilter])
 
-  const EntryRow = ({ entry }: { entry: JournalEntry }) => (
-    <Link
-      to={`/journal/${entry.entry_date}`}
-      className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-gray-900">
-            {format(new Date(entry.entry_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')}
-          </span>
-          {entry.entry_date === today && (
-            <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
+  const EntryRow = ({ entry }: { entry: JournalEntry }) => {
+    const eProjects = projectMap[entry.id] ?? []
+    return (
+      <Link
+        to={`/journal/${entry.entry_date}`}
+        className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="text-sm font-semibold text-gray-900">
+              {format(new Date(entry.entry_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')}
+            </span>
+            {entry.entry_date === today && (
+              <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
+            )}
+            {eProjects.map(p => (
+              <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+            ))}
+          </div>
+          {entry.focus && (
+            <p className="text-sm text-gray-600 truncate">{stripMarkup(entry.focus)}</p>
+          )}
+          {entry.productivity_rating && (
+            <div className="mt-1">
+              <StarRating value={entry.productivity_rating} readonly />
+            </div>
           )}
         </div>
-        {entry.focus && (
-          <p className="text-sm text-gray-600 truncate">{stripMarkup(entry.focus)}</p>
-        )}
-        {entry.productivity_rating && (
-          <div className="mt-1">
-            <StarRating value={entry.productivity_rating} readonly />
-          </div>
-        )}
-      </div>
-      <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-    </Link>
-  )
+        <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+      </Link>
+    )
+  }
+
+  const isFiltering = !!(search || ratingFilter || projectFilter)
 
   const subtitle = loading
     ? 'Loading…'
-    : search || ratingFilter
+    : isFiltering
       ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${entries.length} loaded)` : ''}`
       : `${totalCount} entr${totalCount !== 1 ? 'ies' : 'y'}`
 
@@ -152,6 +187,12 @@ export function JournalListPage() {
           onChange={e => setSearch(e.target.value)}
           className="flex-1 min-w-[180px]"
         />
+        {allProjects.length > 0 && (
+          <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-44">
+            <option value="">All projects</option>
+            {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+          </Select>
+        )}
         <Select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)} className="w-36">
           <option value="">All ratings</option>
           {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} stars</option>)}
@@ -168,7 +209,7 @@ export function JournalListPage() {
         <EmptyState
           title="No journal entries yet"
           description="Start today's journal to capture what you worked on, what moved forward, and what still needs attention."
-          action={!search && !ratingFilter ? { label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) } : undefined}
+          action={!isFiltering ? { label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) } : undefined}
         />
       ) : grouped ? (
         /* Grouped by month view */
