@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
-import { SkListCard } from '../components/ui/Skeleton'
+import { SkListCard, SkGridCards } from '../components/ui/Skeleton'
 
 const PAGE_SIZE = 30
 
@@ -292,7 +292,7 @@ export function ProjectsPage() {
       />
 
       {loading ? (
-        <SkListCard rows={3} />
+        view === 'grid' ? <SkGridCards count={6} /> : <SkListCard rows={3} />
       ) : search ? (
         /* Search results */
         filtered.length === 0 ? (

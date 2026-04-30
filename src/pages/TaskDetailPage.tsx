@@ -164,13 +164,53 @@ export function TaskDetailPage() {
 
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
-      <div className="space-y-2">
-        <Sk className="h-2.5 w-20" />
-        <Sk className="h-8 w-96 max-w-full" />
-        <Sk className="h-4 w-32" />
+      {/* Back nav + action buttons */}
+      <div className="flex items-center justify-between gap-4">
+        <Sk className="h-3 w-20" />
+        <div className="flex gap-2">
+          <Sk className="h-9 w-28 rounded-lg" />
+          <Sk className="h-9 w-16 rounded-lg" />
+          <Sk className="h-9 w-20 rounded-lg" />
+        </div>
       </div>
-      <div className="space-y-1.5">
-        {[...Array(6)].map((_, i) => <Sk key={i} className={`h-3 ${i % 3 === 2 ? 'w-2/3' : 'w-full'}`} />)}
+      {/* Title + meta badges */}
+      <div className="space-y-3">
+        <Sk className="h-8 w-3/4" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Sk className="h-5 w-16 rounded-full" />
+          <Sk className="h-5 w-16 rounded-full" />
+          <Sk className="h-5 w-24 rounded-full" />
+        </div>
+      </div>
+      {/* Notes */}
+      <div className="space-y-2">
+        <Sk className="h-2.5 w-10" />
+        <div className="space-y-1.5">
+          {[...Array(4)].map((_, i) => (
+            <Sk key={i} className={`h-3 ${i % 3 === 2 ? 'w-2/3' : 'w-full'}`} />
+          ))}
+        </div>
+      </div>
+      {/* Subtasks */}
+      <div className="space-y-3">
+        <Sk className="h-2.5 w-16" />
+        <Sk className="h-1.5 w-full rounded-full" />
+        <div className="space-y-2.5">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <Sk className="h-4 w-4 rounded-full shrink-0" />
+              <Sk className={`h-3 ${i === 1 ? 'w-1/2' : 'w-2/3'}`} />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Projects */}
+      <div className="pt-4 border-t border-gray-100 space-y-2">
+        <Sk className="h-2.5 w-12" />
+        <div className="flex gap-2">
+          <Sk className="h-5 w-20 rounded-full" />
+          <Sk className="h-5 w-16 rounded-full" />
+        </div>
       </div>
     </div>
   )

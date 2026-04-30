@@ -15,7 +15,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
-import { SkListCard } from '../components/ui/Skeleton'
+import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -357,6 +357,8 @@ export function TasksPage() {
       </div>
 
       {loading ? (
+        view === 'calendar' ? <SkCalendar /> :
+        view === 'grid'     ? <SkGridCards count={6} /> :
         <SkListCard rows={5} />
       ) : filtered.length === 0 ? (
         <EmptyState

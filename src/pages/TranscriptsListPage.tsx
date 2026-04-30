@@ -10,7 +10,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
-import { SkListCard } from '../components/ui/Skeleton'
+import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -233,6 +233,8 @@ export function TranscriptsListPage() {
       </div>
 
       {loading ? (
+        view === 'calendar' ? <SkCalendar /> :
+        view === 'grid'     ? <SkGridCards count={6} /> :
         <SkListCard rows={4} />
       ) : filtered.length === 0 ? (
         <EmptyState

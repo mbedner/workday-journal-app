@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
-import { Sk, SkListCard } from '../components/ui/Skeleton'
+import { Sk, SkCalendar, SkListCard } from '../components/ui/Skeleton'
 import { WeeklyRecapModal } from '../components/ui/WeeklyRecapModal'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -187,15 +187,31 @@ export function DashboardPage() {
           ))}
         </div>
       </div>
+      {/* Calendar */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Sk className="h-2.5 w-16" />
+          <div className="flex items-center gap-3">
+            {[...Array(4)].map((_, i) => <Sk key={i} className="h-2.5 w-16" />)}
+          </div>
+        </div>
+        <SkCalendar />
+      </div>
       {/* Two-column sections */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-3">
-          <Sk className="h-2.5 w-24" />
+          <div className="flex items-center justify-between">
+            <Sk className="h-2.5 w-24" />
+            <Sk className="h-2.5 w-12" />
+          </div>
           <SkListCard rows={3} />
         </div>
         <div className="space-y-3">
-          <Sk className="h-2.5 w-32" />
-          <SkListCard rows={2} />
+          <div className="flex items-center justify-between">
+            <Sk className="h-2.5 w-32" />
+            <Sk className="h-2.5 w-12" />
+          </div>
+          <SkListCard rows={3} />
         </div>
       </div>
     </div>

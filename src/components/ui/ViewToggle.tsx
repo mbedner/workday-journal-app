@@ -16,7 +16,7 @@ const META: Record<ViewMode, { Icon: React.ElementType; label: string }> = {
 
 export function ViewToggle({ value, onChange, options = ['list', 'grid', 'calendar'] }: ViewToggleProps) {
   return (
-    <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+    <div className="flex h-9 rounded-lg border border-gray-200 overflow-hidden shrink-0">
       {options.map(opt => {
         const { Icon, label } = META[opt]
         const active = value === opt
@@ -25,7 +25,7 @@ export function ViewToggle({ value, onChange, options = ['list', 'grid', 'calend
             key={opt}
             onClick={() => onChange(opt)}
             title={label}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors
+            className={`flex items-center justify-center gap-1.5 px-3 h-full text-sm font-medium transition-colors
               ${active ? 'bg-indigo-50 text-indigo-600' : 'bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-50'}
               ${opt !== options[0] ? 'border-l border-gray-200' : ''}
             `}
