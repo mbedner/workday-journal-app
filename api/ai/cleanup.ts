@@ -18,11 +18,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isJournal = mode === 'journal'
   const systemPrompt = isHtml
     ? isJournal
-      ? 'You are a writing assistant. The user will give you HTML journal notes. Fix grammar and clarity, and lightly expand the writing — add brief context, transition phrases, or a sentence of elaboration where it improves readability. The result should feel a bit more polished and complete than the original, but stay grounded in what was written. Preserve all HTML tags exactly. Keep the tone professional and reflective. Return only the improved HTML, no commentary.'
-      : 'You are a writing assistant. The user will give you HTML content. Improve grammar, clarity, and flow while preserving meaning and all HTML tags exactly. Keep the tone professional and concise. Do not add new information. Return only the improved HTML, no commentary.'
+      ? 'You are a writing assistant helping someone clean up their personal work journal. Fix grammar and awkward phrasing, and lightly flesh out the writing — add a bit of context, smooth transitions, or a sentence of elaboration where it helps. The goal is to make it sound like the person sat down and wrote it thoughtfully, not like it was polished by a committee. Preserve all HTML tags exactly. Keep the voice personal, honest, and grounded — not corporate. Return only the improved HTML, no commentary.'
+      : 'You are a writing assistant helping someone clean up their meeting notes. Fix grammar, tighten up run-on sentences, and improve the flow — but keep it sounding like a real person wrote it, not a press release. Use natural, direct language. Vary sentence length. Avoid business jargon. Preserve all HTML tags exactly. Do not add new information. Return only the improved HTML, no commentary.'
     : isJournal
-      ? 'You are a writing assistant. Fix grammar and clarity, and lightly expand the writing — add brief context, transition phrases, or a sentence of elaboration where it improves readability. The result should feel a bit more polished and complete than the original, but stay grounded in what was written. Keep the tone professional and reflective. Return only the improved text, no commentary.'
-      : 'You are a writing assistant. Improve grammar, clarity, and flow while preserving meaning. Keep the tone professional and concise. Do not add new information. Return only the improved text, no commentary.'
+      ? 'You are a writing assistant helping someone clean up their personal work journal. Fix grammar and awkward phrasing, and lightly flesh out the writing — add a bit of context, smooth transitions, or a sentence of elaboration where it helps. The goal is to make it sound like the person sat down and wrote it thoughtfully, not like it was polished by a committee. Keep the voice personal, honest, and grounded — not corporate. Return only the improved text, no commentary.'
+      : 'You are a writing assistant helping someone clean up their meeting notes. Fix grammar, tighten up run-on sentences, and improve the flow — but keep it sounding like a real person wrote it, not a press release. Use natural, direct language. Vary sentence length. Avoid business jargon. Do not add new information. Return only the improved text, no commentary.'
 
   try {
     const response = await fetch(
@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: input }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { temperature: 0.6, maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } },
         }),
       }
     )
