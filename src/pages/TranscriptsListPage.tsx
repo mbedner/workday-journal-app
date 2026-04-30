@@ -105,6 +105,7 @@ export function TranscriptsListPage() {
   }
 
   const hasMore = transcripts.length < totalCount
+  const canLoadMore = hasMore && !search && !projectFilter
 
   // Client-side filter across loaded records
   const filtered = useMemo(() => transcripts.filter(t => {
@@ -234,7 +235,7 @@ export function TranscriptsListPage() {
             </div>
           ))}
 
-          {hasMore && (
+          {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
                 Load more

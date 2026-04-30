@@ -62,42 +62,41 @@ export function JournalListPage() {
     setProjectMap(map)
   }
 
-  // Reset and re-fetch when sort changes
+  const buildQuery = (from: number, to: number) => {
+    let q = supabase
+      .from('journal_entries')
+      .select('*', { count: 'exact' })
+      .is('archived_at', null)
+    // rating filter is server-side so totalCount and pagination stay accurate
+    if (ratingFilter) q = q.eq('productivity_rating', parseInt(ratingFilter))
+    return q.order('entry_date', { ascending: sort === 'oldest' }).range(from, to)
+  }
+
+  // Reset and re-fetch when sort or rating filter changes
   useEffect(() => {
     setLoading(true)
     setEntries([])
     Promise.all([
-      supabase
-        .from('journal_entries')
-        .select('*', { count: 'exact' })
-        .is('archived_at', null)
-        .order('entry_date', { ascending: sort === 'oldest' })
-        .range(0, PAGE_SIZE - 1),
+      buildQuery(0, PAGE_SIZE - 1),
       fetchProjectMap(),
     ]).then(([{ data, count }]) => {
       setEntries(data ?? [])
       setTotalCount(count ?? 0)
       setLoading(false)
     })
-  }, [sort])
+  }, [sort, ratingFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async () => {
     setLoadingMore(true)
-    const { data } = await supabase
-      .from('journal_entries')
-      .select('*')
-      .is('archived_at', null)
-      .order('entry_date', { ascending: sort === 'oldest' })
-      .range(entries.length, entries.length + PAGE_SIZE - 1)
+    const { data } = await buildQuery(entries.length, entries.length + PAGE_SIZE - 1)
     setEntries(prev => [...prev, ...(data ?? [])])
     setLoadingMore(false)
   }
 
   const hasMore = entries.length < totalCount
 
-  // Client-side filter across loaded entries
+  // ratingFilter is server-side; only project + search remain client-side
   const filtered = useMemo(() => entries.filter(e => {
-    if (ratingFilter && e.productivity_rating !== parseInt(ratingFilter)) return false
     if (projectFilter) {
       const eProjects = projectMap[e.id] ?? []
       if (!eProjects.includes(projectFilter)) return false
@@ -113,7 +112,10 @@ export function JournalListPage() {
       )
     }
     return true
-  }), [entries, search, ratingFilter, projectFilter, projectMap])
+  }), [entries, search, projectFilter, projectMap])
+
+  // Load more is only valid when no client-side-only filters are active
+  const canLoadMore = hasMore && !search && !projectFilter
 
   // Group by month/year when not filtering
   const grouped = useMemo(() => {
@@ -164,9 +166,9 @@ export function JournalListPage() {
 
   const subtitle = loading
     ? 'Loading…'
-    : isFiltering
+    : search || projectFilter
       ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${entries.length} loaded)` : ''}`
-      : `${totalCount} entr${totalCount !== 1 ? 'ies' : 'y'}`
+      : `${totalCount} entr${totalCount !== 1 ? 'ies' : 'y'}${canLoadMore ? ` · ${entries.length} loaded` : ''}`
 
   return (
     <div className="space-y-6">
@@ -226,7 +228,7 @@ export function JournalListPage() {
             </div>
           ))}
 
-          {hasMore && (
+          {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
                 Load more

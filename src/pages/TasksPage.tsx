@@ -75,10 +75,18 @@ export function TasksPage() {
   const fetchTasks = async (replace = true) => {
     if (replace) setLoading(true)
     const from = replace ? 0 : tasks.length
+
+    // Build server-side filtered query so totalCount and pagination are accurate
+    let q = supabase.from('tasks').select('*', { count: 'exact' }).is('archived_at', null)
+    if (statusFilter === 'open') q = q.neq('status', 'done')
+    else if (statusFilter) q = q.eq('status', statusFilter)
+    if (priorityFilter) q = q.eq('priority', priorityFilter)
+    if (sort === 'due_date') q = q.order('due_date', { ascending: true, nullsFirst: false })
+    else q = q.order('created_at', { ascending: sort === 'oldest' })
+    q = q.range(from, from + PAGE_SIZE - 1)
+
     const [{ data: taskData, count }, { data: tpData }] = await Promise.all([
-      supabase.from('tasks').select('*', { count: 'exact' }).is('archived_at', null)
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1),
+      q,
       supabase.from('task_projects').select('task_id, projects(name)'),
     ])
     const loadedTasks = taskData ?? []
@@ -116,7 +124,8 @@ export function TasksPage() {
     else setLoadingMore(false)
   }
 
-  useEffect(() => { fetchTasks() }, [])
+  // Refetch from page 1 whenever server-side filter params change
+  useEffect(() => { fetchTasks(true) }, [statusFilter, priorityFilter, sort]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMoreTasks = () => {
     setLoadingMore(true)
@@ -264,10 +273,8 @@ export function TasksPage() {
     return b.created_at.localeCompare(a.created_at)
   })
 
+  // status + priority are handled server-side; only project + search remain client-side
   const filtered = sorted.filter(t => {
-    if (statusFilter === 'open' && t.status === 'done') return false
-    if (statusFilter && statusFilter !== 'open' && t.status !== statusFilter) return false
-    if (priorityFilter && t.priority !== priorityFilter) return false
     if (projectFilter) {
       const taskProjects = projectMap[t.id] ?? []
       if (!taskProjects.includes(projectFilter)) return false
@@ -279,9 +286,8 @@ export function TasksPage() {
     return true
   })
 
-  const openCount = tasks.filter(t => t.status !== 'done').length
-  const doneCount = tasks.filter(t => t.status === 'done').length
-  const isPartialLoad = hasMoreTasks && !search && !priorityFilter && !projectFilter
+  // Load more is only valid when no client-side-only filters are active
+  const canLoadMore = hasMoreTasks && !search && !projectFilter
 
   return (
     <div className="space-y-6">
@@ -289,8 +295,7 @@ export function TasksPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
           <p className="text-sm text-gray-500">
-            {openCount} open · {doneCount} completed
-            {isPartialLoad && <span className="text-gray-400"> · {tasks.length} of {totalCount} loaded</span>}
+            {loading ? 'Loading…' : `${totalCount} task${totalCount !== 1 ? 's' : ''}${canLoadMore ? ` · ${tasks.length} loaded` : ''}`}
           </p>
         </div>
         <Button onClick={openAdd}>+ Add task</Button>
@@ -405,8 +410,8 @@ export function TasksPage() {
         </div>
       )}
 
-      {/* Load more */}
-      {!loading && hasMoreTasks && (
+      {/* Load more — only when no client-side filters that could hide results */}
+      {!loading && canLoadMore && (
         <div className="flex flex-col items-center gap-1 pt-2">
           <Button variant="secondary" onClick={loadMoreTasks} loading={loadingMore}>
             Load more
