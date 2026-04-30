@@ -14,6 +14,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { askData, SearchableRecord, AskDataSource } from '../../lib/ai'
 import { Badge } from './Badge'
+import { MarkdownContent } from './MarkdownContent'
 
 interface Props {
   open: boolean
@@ -24,6 +25,9 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   sources?: AskDataSource[]
+  /** Typewriter animation state — present only while streaming */
+  displayLength?: number
+  isStreaming?: boolean
 }
 
 const SUGGESTED_PROMPTS = [
@@ -301,8 +305,32 @@ export function AskDataDrawer({ open, onClose }: Props) {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const streaming = messages.some(m => m.isStreaming)
+    bottomRef.current?.scrollIntoView({ behavior: streaming ? 'instant' : 'smooth' })
   }, [messages, loading])
+
+  // Typewriter: advance displayLength by ~3 chars every 18ms (~167 chars/sec)
+  useEffect(() => {
+    const idx = messages.findIndex(m => m.isStreaming)
+    if (idx === -1) return
+
+    const msg = messages[idx]
+    const current = msg.displayLength ?? 0
+
+    if (current >= msg.content.length) {
+      setMessages(prev => prev.map((m, i) => i === idx ? { ...m, isStreaming: false } : m))
+      return
+    }
+
+    const t = setTimeout(() => {
+      setMessages(prev => prev.map((m, i) =>
+        i === idx
+          ? { ...m, displayLength: Math.min((m.displayLength ?? 0) + 3, m.content.length) }
+          : m
+      ))
+    }, 18)
+    return () => clearTimeout(t)
+  }, [messages])
 
   // Keyboard shortcut to close
   useEffect(() => {
@@ -325,10 +353,13 @@ export function AskDataDrawer({ open, onClose }: Props) {
       const allRecords = await fetchRecords(q)
       const ranked = rankRecords(allRecords, q)
       const result = await askData(q, ranked)
+      // Start typewriter: reveal 0 chars initially, drive via useEffect below
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: result.answer,
         sources: result.sources,
+        isStreaming: true,
+        displayLength: 0,
       }])
     } catch (e: any) {
       setError(e.message ?? 'Ask Your Data is unavailable right now. Try again.')
@@ -411,25 +442,35 @@ export function AskDataDrawer({ open, onClose }: Props) {
                         </div>
                       ) : (
                         /* Assistant response */
-                        <div className="space-y-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <RiSparklingLine size={12} className="text-indigo-600" />
-                            </div>
-                            <div className="flex-1 min-w-0 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                              {msg.content}
-                            </div>
-                          </div>
+                        (() => {
+                          const displayed = msg.isStreaming
+                            ? msg.content.slice(0, msg.displayLength ?? 0)
+                            : msg.content
+                          return (
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-2.5">
+                                <div className={`shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center ${msg.isStreaming ? 'animate-pulse' : ''}`}>
+                                  <RiSparklingLine size={12} className="text-indigo-600" />
+                                </div>
+                                <div className="flex-1 min-w-0 [&_.prose]:!text-sm [&_.prose_p]:!my-1 [&_.prose_ul]:!my-1 [&_.prose_li]:!my-0.5 [&_.prose_h1]:!text-sm [&_.prose_h2]:!text-sm [&_.prose_h3]:!text-xs">
+                                  <MarkdownContent content={displayed} />
+                                  {msg.isStreaming && (
+                                    <span className="inline-block w-0.5 h-3.5 bg-gray-500 align-middle ml-0.5 animate-pulse" />
+                                  )}
+                                </div>
+                              </div>
 
-                          {msg.sources && msg.sources.length > 0 && (
-                            <div className="ml-8 space-y-2">
-                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
-                              {msg.sources.map(source => (
-                                <SourceCard key={`${source.type}-${source.id}`} source={source} onClose={onClose} />
-                              ))}
+                              {!msg.isStreaming && msg.sources && msg.sources.length > 0 && (
+                                <div className="ml-8 space-y-2">
+                                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
+                                  {msg.sources.map(source => (
+                                    <SourceCard key={`${source.type}-${source.id}`} source={source} onClose={onClose} />
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          )
+                        })()
                       )}
                     </div>
                   ))}
