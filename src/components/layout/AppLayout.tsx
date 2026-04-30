@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { RiSparklingLine } from '@remixicon/react'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { GlobalSearch } from '../GlobalSearch'
@@ -25,6 +24,7 @@ export function AppLayout() {
 
   return (
     <ToastProvider>
+      {/* Push-drawer layout: sidebar | content | ask-drawer all in one flex row */}
       <div className="flex h-screen overflow-hidden bg-gray-50">
         <Sidebar onOpenSearch={() => setSearchOpen(true)} onOpenAsk={() => setAskOpen(true)} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -35,20 +35,10 @@ export function AppLayout() {
             </div>
           </main>
         </div>
-        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+        {/* Drawer sits as a flex sibling — pushes content left as it opens */}
         <AskDataDrawer open={askOpen} onClose={() => setAskOpen(false)} />
       </div>
-
-      {/* Floating Ask button — visible only on desktop when sidebar is hidden, tucked to bottom-right */}
-      <button
-        onClick={() => setAskOpen(true)}
-        className="hidden fixed bottom-5 right-5 z-40 items-center gap-2 px-4 py-2.5 rounded-full bg-indigo-600 text-white text-sm font-medium shadow-lg hover:bg-indigo-700 transition-colors"
-        aria-label="Ask Your Data"
-      >
-        <RiSparklingLine size={15} />
-        Ask Your Data
-      </button>
-
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <ToastContainer />
     </ToastProvider>
   )

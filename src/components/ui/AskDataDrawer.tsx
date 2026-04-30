@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   RiCloseLine, RiSparklingLine, RiSendPlane2Line,
   RiDeleteBinLine, RiBookOpenLine, RiCheckboxLine, RiFileList3Line,
@@ -351,28 +350,18 @@ export function AskDataDrawer({ open, onClose }: Props) {
 
   const isEmpty = messages.length === 0
 
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
-          <motion.div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-          />
-
-          {/* Drawer panel */}
-          <motion.div
-            className="relative flex flex-col bg-white shadow-2xl w-full sm:w-[480px] max-w-full h-full"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-          >
+  // Push drawer: width animates open/closed; main content compresses naturally.
+  // The outer motion.div clips overflow; the inner div is always 480px wide so
+  // content doesn't reflow during the animation.
+  return (
+    <motion.div
+      className="shrink-0 flex flex-col h-full overflow-hidden border-l border-gray-200 bg-white"
+      animate={{ width: open ? 480 : 0 }}
+      initial={{ width: 0 }}
+      transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+    >
+      {/* Fixed-width inner panel — never reflows during animation */}
+      <div className="w-[480px] h-full flex flex-col">
             {/* ── Header ── */}
             <div className="shrink-0 px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
               <div>
@@ -503,10 +492,7 @@ export function AskDataDrawer({ open, onClose }: Props) {
                 </div>
               )}
             </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>,
-    document.body
+      </div>
+    </motion.div>
   )
 }
