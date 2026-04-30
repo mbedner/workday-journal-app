@@ -23,9 +23,11 @@ try {
 const PORT = 3001
 
 const ROUTES: Record<string, string> = {
-  '/api/ai/cleanup':         '../api/ai/cleanup.ts',
-  '/api/ai/weekly-recap':    '../api/ai/weekly-recap.ts',
-  '/api/ai/extract-actions': '../api/ai/extract-actions.ts',
+  '/api/ai/cleanup':           '../api/ai/cleanup.ts',
+  '/api/ai/weekly-recap':      '../api/ai/weekly-recap.ts',
+  '/api/ai/extract-actions':   '../api/ai/extract-actions.ts',
+  '/api/ai/summarize-meeting': '../api/ai/summarize-meeting.ts',
+  '/api/ai/ask-data':          '../api/ai/ask-data.ts',
 }
 
 /** Minimal shims so the Vercel handler signatures work as-is */
