@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { RiMenuLine, RiCloseLine, RiSearchLine } from '@remixicon/react'
+import { RiMenuLine, RiCloseLine, RiSearchLine, RiSparklingLine } from '@remixicon/react'
 import { useAuth } from '../../hooks/useAuth'
 
 const nav = [
@@ -14,9 +14,10 @@ const nav = [
 
 interface Props {
   onOpenSearch: () => void
+  onOpenAsk: () => void
 }
 
-export function TopBar({ onOpenSearch }: Props) {
+export function TopBar({ onOpenSearch, onOpenAsk }: Props) {
   const [open, setOpen] = useState(false)
   const { signOut } = useAuth()
   const navigate = useNavigate()
@@ -36,6 +37,13 @@ export function TopBar({ onOpenSearch }: Props) {
         >
           <RiSearchLine size={14} className="shrink-0" />
           <span className="text-xs">Search...</span>
+        </button>
+        <button
+          onClick={onOpenAsk}
+          className="p-1.5 rounded-lg hover:bg-indigo-50 transition text-indigo-500 shrink-0"
+          aria-label="Ask Your Data"
+        >
+          <RiSparklingLine size={20} />
         </button>
         <button onClick={() => setOpen(!open)} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-600 shrink-0">
           {open ? <RiCloseLine size={20} /> : <RiMenuLine size={20} />}

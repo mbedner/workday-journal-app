@@ -8,6 +8,7 @@ import {
   RiSettings3Line,
   RiSearchLine,
   RiArchiveLine,
+  RiSparklingLine,
 } from '@remixicon/react'
 
 const nav = [
@@ -25,9 +26,10 @@ const bottomNav = [
 
 interface Props {
   onOpenSearch: () => void
+  onOpenAsk: () => void
 }
 
-export function Sidebar({ onOpenSearch }: Props) {
+export function Sidebar({ onOpenSearch, onOpenAsk }: Props) {
   return (
     <aside className="hidden lg:flex flex-col w-56 shrink-0 bg-white border-r border-gray-200 h-full">
       <div className="px-5 py-5 border-b border-gray-100">
@@ -68,6 +70,17 @@ export function Sidebar({ onOpenSearch }: Props) {
           </NavLink>
         ))}
       </nav>
+
+      {/* Ask Your Data */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={onOpenAsk}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+        >
+          <RiSparklingLine size={16} className="text-indigo-500 shrink-0" />
+          Ask Your Data
+        </button>
+      </div>
 
       {/* Bottom nav */}
       <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-0.5">

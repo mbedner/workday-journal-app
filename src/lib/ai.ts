@@ -78,3 +78,35 @@ export interface ExtractedActions {
 export function extractTranscriptActions(transcript: string): Promise<ExtractedActions> {
   return post('/extract-actions', { transcript })
 }
+
+// ─── Feature 4: Ask Your Data ─────────────────────────────────────────────────
+
+export interface SearchableRecord {
+  id: string
+  type: 'journal' | 'task' | 'transcript'
+  title: string
+  date?: string
+  body: string
+  status?: string
+  projects: string[]
+  tags: string[]
+  url: string
+}
+
+export interface AskDataSource {
+  id: string
+  type: 'journal' | 'task' | 'transcript'
+  title: string
+  date?: string
+  preview: string
+  url: string
+}
+
+export interface AskDataResult {
+  answer: string
+  sources: AskDataSource[]
+}
+
+export function askData(question: string, records: SearchableRecord[]): Promise<AskDataResult> {
+  return post('/ask-data', { question, records })
+}
