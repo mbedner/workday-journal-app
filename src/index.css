@@ -8,8 +8,44 @@
   }
 }
 
-@layer utilities {
-  .scrollbar-thin {
-    scrollbar-width: thin;
-  }
+/* ─── Auto-hiding scrollbars ─────────────────────────────────────────────────
+   Scrollbar track is always invisible. The thumb fades in while the user is
+   actively scrolling (JS sets the data-scrolling attribute) and also appears
+   on hover so the user can grab it at any time.
+   Firefox uses scrollbar-color which doesn't support per-element transitions,
+   so we rely on the webkit approach for the animation and fall back gracefully.
+*/
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  transition: background 0.2s ease;
+}
+
+/* Show on hover of any scrollable ancestor */
+*:hover > ::-webkit-scrollbar-thumb,
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* Keep visible while actively scrolling (class toggled by JS below) */
+.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
 }
