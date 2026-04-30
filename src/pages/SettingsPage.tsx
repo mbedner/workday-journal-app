@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { RiShieldCheckLine, RiShieldLine } from '@remixicon/react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
+import { MfaSetupModal } from '../components/ui/MfaSetupModal'
 import { useToast } from '../contexts/ToastContext'
 
 export function SettingsPage() {
@@ -13,6 +15,37 @@ export function SettingsPage() {
   const { addToast } = useToast()
   const [exporting, setExporting] = useState(false)
   const [signOutModal, setSignOutModal] = useState(false)
+
+  // MFA state
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
+  const [mfaLoading, setMfaLoading] = useState(true)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [disableModal, setDisableModal] = useState(false)
+  const [disabling, setDisabling] = useState(false)
+
+  const loadMfaStatus = async () => {
+    setMfaLoading(true)
+    const { data } = await supabase.auth.mfa.listFactors()
+    const verified = data?.totp?.find(f => f.status === 'verified')
+    setMfaFactorId(verified?.id ?? null)
+    setMfaLoading(false)
+  }
+
+  useEffect(() => { loadMfaStatus() }, [])
+
+  const handleDisable = async () => {
+    if (!mfaFactorId) return
+    setDisabling(true)
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: mfaFactorId })
+    if (error) {
+      addToast('Failed to disable 2FA', 'error')
+    } else {
+      setMfaFactorId(null)
+      addToast('Two-factor authentication disabled', 'info')
+    }
+    setDisabling(false)
+    setDisableModal(false)
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -80,6 +113,44 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      {/* 2FA Card */}
+      <Card>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-2.5">
+            {mfaLoading ? (
+              <div className="w-4 h-4 mt-0.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0" />
+            ) : mfaFactorId ? (
+              <RiShieldCheckLine size={18} className="text-green-500 mt-0.5 shrink-0" />
+            ) : (
+              <RiShieldLine size={18} className="text-gray-400 mt-0.5 shrink-0" />
+            )}
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Two-factor authentication</h2>
+              {mfaLoading ? (
+                <p className="text-xs text-gray-400 mt-0.5">Checking status…</p>
+              ) : mfaFactorId ? (
+                <p className="text-xs text-green-600 mt-0.5 font-medium">Enabled — your account is protected by TOTP</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Add a second layer of security. You'll need your authenticator app each time you sign in.
+                </p>
+              )}
+            </div>
+          </div>
+          {!mfaLoading && (
+            mfaFactorId ? (
+              <Button variant="secondary" size="sm" onClick={() => setDisableModal(true)}>
+                Disable
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => setSetupOpen(true)}>
+                Enable
+              </Button>
+            )
+          )}
+        </div>
+      </Card>
+
       <Card>
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Export data</h2>
         <p className="text-xs text-gray-500 mb-4">
@@ -90,6 +161,27 @@ export function SettingsPage() {
         </Button>
       </Card>
 
+      {/* 2FA Setup Modal */}
+      <MfaSetupModal
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        onEnrolled={() => { loadMfaStatus(); addToast('Two-factor authentication enabled', 'success') }}
+      />
+
+      {/* Disable 2FA confirmation */}
+      <Modal open={disableModal} onClose={() => setDisableModal(false)} title="Disable two-factor authentication?">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Removing 2FA means you'll only need your password to sign in. You can re-enable it any time from Settings.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDisableModal(false)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDisable} loading={disabling}>Disable 2FA</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Sign out confirmation */}
       <Modal open={signOutModal} onClose={() => setSignOutModal(false)} title="Sign out?">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">You'll be redirected to the login screen.</p>
