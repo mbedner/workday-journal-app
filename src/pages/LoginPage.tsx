@@ -25,7 +25,10 @@ export function LoginPage() {
   const [mfaVerifying, setMfaVerifying] = useState(false)
   const codeInputRef = useRef<HTMLInputElement>(null)
 
-  if (!loading && session) return <Navigate to="/dashboard" replace />
+  // Only redirect returning users who already have a complete session.
+  // Don't fire during an active submission (session lands before AAL check finishes)
+  // and don't fire once we've moved to the MFA step.
+  if (!loading && session && !submitting && step === 'credentials') return <Navigate to="/dashboard" replace />
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
