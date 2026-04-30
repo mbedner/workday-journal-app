@@ -476,13 +476,14 @@ export function TasksPage() {
                 </div>
               )}
               <div className="flex gap-2">
-                <Input
-                  value={newSubtaskTitle}
-                  onChange={e => setNewSubtaskTitle(e.target.value)}
-                  placeholder="Add a subtask..."
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtask() } }}
-                  className="flex-1"
-                />
+                <div className="flex-1 min-w-0">
+                  <Input
+                    value={newSubtaskTitle}
+                    onChange={e => setNewSubtaskTitle(e.target.value)}
+                    placeholder="Add a subtask..."
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtask() } }}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="secondary"
