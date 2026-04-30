@@ -416,7 +416,7 @@ export function TasksPage() {
       )}
 
       {/* Add / Edit modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTask ? 'Edit task' : 'Add task'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTask ? 'Edit task' : 'Add task'} size="lg">
         <div className="space-y-4">
           <Input label="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Task title" required autoFocus />
           <RichTextEditor label="Notes" value={form.notes} onChange={html => setForm({ ...form, notes: html })} placeholder="Optional notes, links to PBIs, context..." minHeight={100} />
