@@ -94,7 +94,7 @@ export function CalendarView({ items, initialMonth }: CalendarViewProps) {
             <div
               key={i}
               className={[
-                'min-h-[90px] p-1.5',
+                'min-h-[130px] p-2',
                 i >= 7 ? 'border-t border-gray-100' : '',
                 i % 7 !== 6 ? 'border-r border-gray-100' : '',
                 !inMonth ? 'bg-gray-50/40' : '',
