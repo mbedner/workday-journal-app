@@ -12,6 +12,7 @@ import { Modal } from '../components/ui/Modal'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { AiCleanupModal } from '../components/ui/AiCleanupModal'
 import { ExtractActionsModal, TaskPayload } from '../components/ui/ExtractActionsModal'
+import { summarizeMeeting } from '../lib/ai'
 import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
@@ -38,6 +39,8 @@ export function TranscriptDetailPage() {
   const [meetingDate, setMeetingDate] = useState('')
   const [attendees, setAttendees] = useState('')
   const [content, setContent] = useState('')
+  const [summary, setSummary] = useState('')
+  const [summarizing, setSummarizing] = useState(false)
   const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
@@ -53,6 +56,7 @@ export function TranscriptDetailPage() {
       setTitle(t.meeting_title)
       setMeetingDate(t.meeting_date ?? '')
       setAttendees(t.attendees ?? '')
+      setSummary(t.summary ?? '')
       // If raw_transcript is HTML (saved by the rich-text editor), use it directly.
       // Otherwise fall back to combining the old structured fields with markdown headings.
       if (t.raw_transcript && t.raw_transcript.trim().startsWith('<')) {
@@ -86,7 +90,7 @@ export function TranscriptDetailPage() {
         attendees: attendees || null,
         raw_transcript: content || null,
         // Clear old structured fields — content lives in raw_transcript now
-        summary: null,
+        // summary is preserved (AI-generated executive summary)
         decisions: null,
         action_items: null,
         follow_ups: null,
@@ -129,6 +133,21 @@ export function TranscriptDetailPage() {
   const handleDelete = async () => {
     await supabase.from('transcripts').update({ archived_at: new Date().toISOString() }).eq('id', id!)
     navigate('/transcripts')
+  }
+
+  const generateSummary = async () => {
+    if (!content.trim()) return
+    setSummarizing(true)
+    try {
+      const { summary: text } = await summarizeMeeting(content)
+      setSummary(text)
+      await supabase.from('transcripts').update({ summary: text, updated_at: new Date().toISOString() }).eq('id', id!)
+      addToast('Summary generated', 'success')
+    } catch (e: any) {
+      addToast(e.message ?? 'Failed to generate summary', 'error')
+    } finally {
+      setSummarizing(false)
+    }
   }
 
   const addTask = async () => {
@@ -257,6 +276,37 @@ export function TranscriptDetailPage() {
             )}
           </div>
         )}
+
+        {/* Executive summary */}
+        {summary ? (
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-1.5 mb-2 shrink-0">
+                <RiSparklingLine size={13} className="text-indigo-500" />
+                <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">Summary</p>
+              </div>
+              <button
+                onClick={generateSummary}
+                disabled={summarizing || !content}
+                className="text-xs text-indigo-400 hover:text-indigo-600 transition disabled:opacity-40 shrink-0"
+              >
+                {summarizing ? 'Regenerating…' : 'Regenerate'}
+              </button>
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed">{summary}</p>
+          </div>
+        ) : content ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateSummary}
+              disabled={summarizing}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition disabled:opacity-40"
+            >
+              <RiSparklingLine size={13} />
+              {summarizing ? 'Generating summary…' : 'Generate executive summary'}
+            </button>
+          </div>
+        ) : null}
 
         {/* Content */}
         {content ? (

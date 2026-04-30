@@ -129,9 +129,9 @@ export function TranscriptsListPage() {
                   {t.meeting_date && <span>{t.meeting_date}</span>}
                   {t.attendees && <span className="truncate">{t.attendees}</span>}
                 </div>
-                {(t.raw_transcript ?? t.summary) && (
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">
-                    {stripMarkup(t.raw_transcript ?? t.summary ?? '')}
+                {(t.summary || t.raw_transcript) && (
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                    {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
                   </p>
                 )}
               </div>

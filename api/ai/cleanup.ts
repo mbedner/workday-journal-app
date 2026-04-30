@@ -6,7 +6,7 @@ const MAX_CHARS = 8_000
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { text } = (req.body ?? {}) as { text?: string }
+  const { text, mode } = (req.body ?? {}) as { text?: string; mode?: string }
   if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
 
   const apiKey = process.env.GEMINI_API_KEY
@@ -15,9 +15,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const isHtml = text.trim().startsWith('<')
   const input = text.slice(0, MAX_CHARS)
 
+  const isJournal = mode === 'journal'
   const systemPrompt = isHtml
-    ? 'You are a writing assistant. The user will give you HTML content. Improve grammar, clarity, and flow while preserving meaning and all HTML tags exactly. Keep the tone professional and concise. Do not add new information. Return only the improved HTML, no commentary.'
-    : 'You are a writing assistant. Improve grammar, clarity, and flow while preserving meaning. Keep the tone professional and concise. Do not add new information. Return only the improved text, no commentary.'
+    ? isJournal
+      ? 'You are a writing assistant. The user will give you HTML journal notes. Fix grammar and clarity, and lightly expand the writing — add brief context, transition phrases, or a sentence of elaboration where it improves readability. The result should feel a bit more polished and complete than the original, but stay grounded in what was written. Preserve all HTML tags exactly. Keep the tone professional and reflective. Return only the improved HTML, no commentary.'
+      : 'You are a writing assistant. The user will give you HTML content. Improve grammar, clarity, and flow while preserving meaning and all HTML tags exactly. Keep the tone professional and concise. Do not add new information. Return only the improved HTML, no commentary.'
+    : isJournal
+      ? 'You are a writing assistant. Fix grammar and clarity, and lightly expand the writing — add brief context, transition phrases, or a sentence of elaboration where it improves readability. The result should feel a bit more polished and complete than the original, but stay grounded in what was written. Keep the tone professional and reflective. Return only the improved text, no commentary.'
+      : 'You are a writing assistant. Improve grammar, clarity, and flow while preserving meaning. Keep the tone professional and concise. Do not add new information. Return only the improved text, no commentary.'
 
   try {
     const response = await fetch(

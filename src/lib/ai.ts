@@ -19,8 +19,18 @@ export interface CleanupResult {
   cleaned_text: string
 }
 
-export function cleanUpWriting(text: string): Promise<CleanupResult> {
-  return post('/cleanup', { text })
+export function cleanUpWriting(text: string, mode?: 'journal' | 'meeting'): Promise<CleanupResult> {
+  return post('/cleanup', { text, mode })
+}
+
+// ─── Feature 1b: Summarize Meeting ───────────────────────────────────────────
+
+export interface SummarizeMeetingResult {
+  summary: string
+}
+
+export function summarizeMeeting(transcript: string): Promise<SummarizeMeetingResult> {
+  return post('/summarize-meeting', { transcript })
 }
 
 // ─── Feature 2: Weekly Recap ─────────────────────────────────────────────────

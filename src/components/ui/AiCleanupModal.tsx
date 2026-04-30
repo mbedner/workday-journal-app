@@ -10,9 +10,10 @@ interface Props {
   onClose: () => void
   original: string
   onReplace: (improved: string) => void
+  mode?: 'journal' | 'meeting'
 }
 
-export function AiCleanupModal({ open, onClose, original, onReplace }: Props) {
+export function AiCleanupModal({ open, onClose, original, onReplace, mode }: Props) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +25,7 @@ export function AiCleanupModal({ open, onClose, original, onReplace }: Props) {
     setError(null)
     setCopied(false)
     setLoading(true)
-    cleanUpWriting(original)
+    cleanUpWriting(original, mode)
       .then(r => setResult(r.cleaned_text))
       .catch(e => setError(e.message ?? 'AI assist unavailable. Try again.'))
       .finally(() => setLoading(false))

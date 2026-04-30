@@ -387,6 +387,7 @@ export function JournalDetailPage() {
         open={cleanupField !== null}
         onClose={() => setCleanupField(null)}
         original={cleanupValue}
+        mode="journal"
         onReplace={text => {
           if (cleanupField === 'focus')         setFocus(text)
           if (cleanupField === 'accomplished')  setAccomplished(text)
