@@ -16,6 +16,7 @@ import { summarizeMeeting } from '../lib/ai'
 import { Sk } from '../components/ui/Skeleton'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
+import { useAttendees } from '../hooks/useAttendees'
 import { useToast } from '../contexts/ToastContext'
 
 export function TranscriptDetailPage() {
@@ -24,6 +25,7 @@ export function TranscriptDetailPage() {
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
+  const knownAttendees = useAttendees()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -37,7 +39,7 @@ export function TranscriptDetailPage() {
 
   const [title, setTitle] = useState('')
   const [meetingDate, setMeetingDate] = useState('')
-  const [attendees, setAttendees] = useState('')
+  const [attendees, setAttendees] = useState<string[]>([])
   const [content, setContent] = useState('')
   const [summary, setSummary] = useState('')
   const [summarizing, setSummarizing] = useState(false)
@@ -55,7 +57,7 @@ export function TranscriptDetailPage() {
       if (!t) { navigate('/transcripts'); return }
       setTitle(t.meeting_title)
       setMeetingDate(t.meeting_date ?? '')
-      setAttendees(t.attendees ?? '')
+      setAttendees(t.attendees ? t.attendees.split(',').map((s: string) => s.trim()).filter(Boolean) : [])
       setSummary(t.summary ?? '')
       // If raw_transcript is HTML (saved by the rich-text editor), use it directly.
       // Otherwise fall back to combining the old structured fields with markdown headings.
@@ -87,7 +89,7 @@ export function TranscriptDetailPage() {
       await supabase.from('transcripts').update({
         meeting_title: title || 'Untitled Meeting',
         meeting_date: meetingDate || null,
-        attendees: attendees || null,
+        attendees: attendees.length ? attendees.join(', ') : null,
         raw_transcript: content || null,
         // Clear old structured fields — content lives in raw_transcript now
         // summary is preserved (AI-generated executive summary)
@@ -237,9 +239,9 @@ export function TranscriptDetailPage() {
               <RiArrowLeftLine size={13} /> All meeting notes
             </button>
             <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
-            {(formattedDate || attendees) && (
+            {(formattedDate || attendees.length > 0) && (
               <p className="text-sm text-gray-400 mt-1">
-                {[formattedDate, attendees].filter(Boolean).join(' · ')}
+                {[formattedDate, attendees.join(', ')].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>
@@ -383,8 +385,14 @@ export function TranscriptDetailPage() {
         <Input label="Meeting title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" />
         <div className="grid grid-cols-2 gap-4">
           <Input label="Date" type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} />
-          <Input label="Attendees" value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="Names or roles" />
         </div>
+        <TagInput
+          label="Attendees"
+          values={attendees}
+          suggestions={knownAttendees}
+          onChange={setAttendees}
+          placeholder="Add attendee…"
+        />
         <TagInput label="Projects" values={selectedProjects} suggestions={allProjects.map(p => p.name)} onChange={setSelectedProjects} placeholder="Add project..." />
         <TagInput label="Tags" values={selectedTags} suggestions={allTags.map(t => t.name)} onChange={setSelectedTags} placeholder="Add tag..." />
         <div>
