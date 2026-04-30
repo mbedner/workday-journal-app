@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   RiCloseLine, RiSparklingLine, RiSendPlane2Line,
   RiDeleteBinLine, RiBookOpenLine, RiCheckboxLine, RiFileList3Line,
@@ -381,159 +381,193 @@ export function AskDataDrawer({ open, onClose }: Props) {
 
   const isEmpty = messages.length === 0
 
-  // Push drawer: width animates open/closed; main content compresses naturally.
-  // The outer motion.div clips overflow; the inner div is always 480px wide so
-  // content doesn't reflow during the animation.
-  return (
-    <motion.div
-      className="shrink-0 flex flex-col h-full overflow-hidden border-l border-gray-200 bg-white"
-      animate={{ width: open ? 480 : 0 }}
-      initial={{ width: 0 }}
-      transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
-    >
-      {/* Fixed-width inner panel — never reflows during animation */}
-      <div className="w-[480px] h-full flex flex-col">
-            {/* ── Header ── */}
-            <div className="shrink-0 px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <RiSparklingLine size={16} className="text-indigo-500" />
-                  <h2 className="text-sm font-semibold text-gray-900">Ask Your Data</h2>
-                </div>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Search and summarize your journals, tasks, and transcripts.
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100 shrink-0"
-              >
-                <RiCloseLine size={18} />
-              </button>
-            </div>
+  // ── Shared panel content ─────────────────────────────────────────────────────
+  const panelContent = (
+    <>
+      {/* ── Header ── */}
+      <div className="shrink-0 px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <RiSparklingLine size={16} className="text-indigo-500" />
+            <h2 className="text-sm font-semibold text-gray-900">Ask Your Data</h2>
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Search and summarize your journals, tasks, and transcripts.
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 transition p-1.5 rounded-lg hover:bg-gray-100 shrink-0"
+        >
+          <RiCloseLine size={20} />
+        </button>
+      </div>
 
-            {/* ── Messages / Suggested prompts ── */}
-            <div className="flex-1 overflow-y-auto">
-              {isEmpty ? (
-                <div className="p-5 space-y-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Try asking…</p>
-                  <div className="flex flex-wrap gap-2">
-                    {SUGGESTED_PROMPTS.map(prompt => (
-                      <button
-                        key={prompt}
-                        onClick={() => submit(prompt)}
-                        className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
+      {/* ── Messages / Suggested prompts ── */}
+      <div className="flex-1 overflow-y-auto">
+        {isEmpty ? (
+          <div className="p-5 space-y-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Try asking…</p>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_PROMPTS.map(prompt => (
+                <button
+                  key={prompt}
+                  onClick={() => submit(prompt)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 space-y-5">
+            {messages.map((msg, i) => (
+              <div key={i}>
+                {msg.role === 'user' ? (
+                  /* User bubble */
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] bg-indigo-600 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-md leading-relaxed">
+                      {msg.content}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="p-4 space-y-5">
-                  {messages.map((msg, i) => (
-                    <div key={i}>
-                      {msg.role === 'user' ? (
-                        /* User bubble */
-                        <div className="flex justify-end">
-                          <div className="max-w-[85%] bg-indigo-600 text-white text-sm px-4 py-2.5 rounded-2xl rounded-tr-md leading-relaxed">
-                            {msg.content}
+                ) : (
+                  /* Assistant response */
+                  (() => {
+                    const displayed = msg.isStreaming
+                      ? msg.content.slice(0, msg.displayLength ?? 0)
+                      : msg.content
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-start">
+                          <div className="flex-1 min-w-0">
+                            <MarkdownContent
+                              content={displayed}
+                              className="[&_p]:my-1 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs text-sm"
+                            />
+                            {msg.isStreaming && (
+                              <span className="inline-block w-0.5 h-3.5 bg-gray-500 align-middle ml-0.5 animate-pulse" />
+                            )}
                           </div>
                         </div>
-                      ) : (
-                        /* Assistant response */
-                        (() => {
-                          const displayed = msg.isStreaming
-                            ? msg.content.slice(0, msg.displayLength ?? 0)
-                            : msg.content
-                          return (
-                            <div className="space-y-3">
-                              <div className="flex items-start">
-                                <div className="flex-1 min-w-0">
-                                  <MarkdownContent
-                                    content={displayed}
-                                    className="[&_p]:my-1 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs text-sm"
-                                  />
-                                  {msg.isStreaming && (
-                                    <span className="inline-block w-0.5 h-3.5 bg-gray-500 align-middle ml-0.5 animate-pulse" />
-                                  )}
-                                </div>
-                              </div>
 
-                              {!msg.isStreaming && msg.sources && msg.sources.length > 0 && (
-                                <div className="mt-3 space-y-2">
-                                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
-                                  {msg.sources.map(source => (
-                                    <SourceCard key={`${source.type}-${source.id}`} source={source} onClose={onClose} />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })()
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Loading indicator */}
-                  {loading && (
-                    <div className="flex items-start gap-2.5">
-                      <div className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center animate-pulse">
-                        <RiSparklingLine size={12} className="text-indigo-600" />
+                        {!msg.isStreaming && msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
+                            {msg.sources.map(source => (
+                              <SourceCard key={`${source.type}-${source.id}`} source={source} onClose={onClose} />
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 text-sm text-gray-400 animate-pulse pt-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error */}
-                  {error && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                      {error}
-                    </div>
-                  )}
-                  <div ref={bottomRef} />
-                </div>
-              )}
-            </div>
-
-            {/* ── Input ── */}
-            <div className="shrink-0 px-4 py-3 border-t border-gray-100 space-y-2">
-              <div className="flex gap-2 items-center">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about your journals, tasks, or transcripts..."
-                  disabled={loading}
-                  className="flex-1 text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400 disabled:opacity-50 disabled:bg-gray-50"
-                />
-                <button
-                  onClick={() => submit(input)}
-                  disabled={!input.trim() || loading}
-                  className="shrink-0 p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <RiSendPlane2Line size={16} />
-                </button>
+                    )
+                  })()
+                )}
               </div>
+            ))}
 
-              {!isEmpty && (
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-gray-300">Press Enter to send</p>
-                  <button
-                    onClick={clearConversation}
-                    className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-500 transition-colors"
-                  >
-                    <RiDeleteBinLine size={11} /> Clear conversation
-                  </button>
+            {/* Loading indicator */}
+            {loading && (
+              <div className="flex items-start gap-2.5">
+                <div className="shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center animate-pulse">
+                  <RiSparklingLine size={12} className="text-indigo-600" />
                 </div>
-              )}
-            </div>
+                <div className="flex items-center gap-1.5 text-sm text-gray-400 animate-pulse pt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
-    </motion.div>
+
+      {/* ── Input ── */}
+      <div className="shrink-0 px-4 py-3 border-t border-gray-100 space-y-2">
+        <div className="flex gap-2 items-center">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about your journals, tasks, or transcripts..."
+            disabled={loading}
+            className="flex-1 text-sm rounded-xl border border-gray-200 px-3 py-2.5 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400 disabled:opacity-50 disabled:bg-gray-50"
+          />
+          <button
+            onClick={() => submit(input)}
+            disabled={!input.trim() || loading}
+            className="shrink-0 p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <RiSendPlane2Line size={16} />
+          </button>
+        </div>
+
+        {!isEmpty && (
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-gray-300">Press Enter to send</p>
+            <button
+              onClick={clearConversation}
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-gray-500 transition-colors"
+            >
+              <RiDeleteBinLine size={11} /> Clear conversation
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  return (
+    <>
+      {/* ── Mobile: full-screen fixed overlay (slide from right) ── */}
+      <AnimatePresence>
+        {open && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              className="sm:hidden fixed inset-0 z-40 bg-black/30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={onClose}
+            />
+            {/* Panel */}
+            <motion.div
+              className="sm:hidden fixed inset-y-0 right-0 z-50 w-full max-w-[min(480px,100vw)] bg-white flex flex-col border-l border-gray-200 shadow-xl"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+            >
+              {panelContent}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Desktop: push drawer (width animates, content compresses) ── */}
+      <motion.div
+        className="hidden sm:flex shrink-0 flex-col h-full overflow-hidden border-l border-gray-200 bg-white"
+        animate={{ width: open ? 480 : 0 }}
+        initial={{ width: 0 }}
+        transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+      >
+        {/* Fixed-width inner panel — never reflows during animation */}
+        <div className="w-[480px] h-full flex flex-col">
+          {panelContent}
+        </div>
+      </motion.div>
+    </>
   )
 }
