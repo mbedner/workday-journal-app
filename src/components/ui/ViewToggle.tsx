@@ -25,7 +25,7 @@ export function ViewToggle({ value, onChange, options = ['list', 'grid', 'calend
             key={opt}
             onClick={() => onChange(opt)}
             title={label}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors
               ${active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-50'}
               ${opt !== options[0] ? 'border-l border-gray-200' : ''}
             `}
