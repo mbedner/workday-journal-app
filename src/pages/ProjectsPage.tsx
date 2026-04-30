@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RiPencilLine, RiDeleteBinLine, RiArrowRightSLine, RiCheckboxCircleLine, RiArrowDownSLine, RiArrowUpSLine, RiLoopLeftLine } from '@remixicon/react'
+import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { supabase } from '../lib/supabase'
 import { Project } from '../types'
 import { Button } from '../components/ui/Button'
@@ -23,6 +24,10 @@ export function ProjectsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [showCompleted, setShowCompleted] = useState(false)
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem('projects-view') as ViewMode) ?? 'list'
+  )
+  const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('projects-view', v) }
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editProject, setEditProject] = useState<Project | null>(null)
@@ -174,6 +179,42 @@ export function ProjectsPage() {
       ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${projects.length} loaded)` : ''}`
       : `${activeProjects.length} active${completedProjects.length > 0 ? `, ${completedProjects.length} completed` : ''}`
 
+  const ProjectCard = ({ p, isCompleted = false }: { p: Project; isCompleted?: boolean }) => (
+    <div
+      className={`bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 cursor-pointer group hover:shadow-sm transition-all ${isCompleted ? 'opacity-60' : 'hover:border-indigo-200'}`}
+      onClick={() => { loadCounts(p.id); navigate(`/projects/${p.id}`) }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className={`text-sm font-semibold ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>{p.name}</p>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {isCompleted ? (
+            <button onClick={e => handleReopen(e, p.id)} className="p-1 text-gray-400 hover:text-indigo-600 transition rounded" title="Reopen">
+              <RiLoopLeftLine size={13} />
+            </button>
+          ) : (
+            <button onClick={e => { e.stopPropagation(); setCompleteId(p.id) }} className="p-1 text-gray-400 hover:text-green-600 transition rounded" title="Mark complete">
+              <RiCheckboxCircleLine size={13} />
+            </button>
+          )}
+          <button onClick={e => openEdit(e, p)} className="p-1 text-gray-400 hover:text-indigo-600 transition rounded" title="Edit">
+            <RiPencilLine size={13} />
+          </button>
+          <button onClick={e => { e.stopPropagation(); setDeleteId(p.id) }} className="p-1 text-gray-400 hover:text-red-500 transition rounded" title="Archive">
+            <RiDeleteBinLine size={13} />
+          </button>
+        </div>
+      </div>
+      {p.description && <p className="text-xs text-gray-500 line-clamp-2">{p.description}</p>}
+      {counts[p.id] && (
+        <div className="flex gap-2 mt-auto text-xs text-gray-400 flex-wrap pt-1 border-t border-gray-100">
+          <span>{counts[p.id].journals} journal{counts[p.id].journals !== 1 ? 's' : ''}</span>
+          <span>{counts[p.id].tasks} task{counts[p.id].tasks !== 1 ? 's' : ''}</span>
+          <span>{counts[p.id].transcripts} note{counts[p.id].transcripts !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+    </div>
+  )
+
   const ProjectRow = ({ p, isCompleted = false }: { p: Project; isCompleted?: boolean }) => (
     <div
       key={p.id}
@@ -237,7 +278,10 @@ export function ProjectsPage() {
           <h1 className="text-xl font-bold text-gray-900">Projects</h1>
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
-        <Button onClick={openAdd}>+ New project</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewToggle value={view} onChange={handleViewChange} options={['list', 'grid']} />
+          <Button onClick={openAdd}>+ New project</Button>
+        </div>
       </div>
 
       <Input
@@ -250,9 +294,13 @@ export function ProjectsPage() {
       {loading ? (
         <SkListCard rows={3} />
       ) : search ? (
-        /* Search results — all projects flat */
+        /* Search results */
         filtered.length === 0 ? (
           <EmptyState title="No projects match your search" description="" />
+        ) : view === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map(p => <ProjectCard key={p.id} p={p} isCompleted={!!p.completed_at} />)}
+          </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
             {filtered.map(p => <ProjectRow key={p.id} p={p} isCompleted={!!p.completed_at} />)}
@@ -268,18 +316,22 @@ export function ProjectsPage() {
         <>
           {/* Active projects */}
           {activeProjects.length > 0 ? (
-            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-              {activeProjects.map(p => <ProjectRow key={p.id} p={p} />)}
-            </div>
+            view === 'grid' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeProjects.map(p => <ProjectCard key={p.id} p={p} />)}
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                {activeProjects.map(p => <ProjectRow key={p.id} p={p} />)}
+              </div>
+            )
           ) : (
             <p className="text-sm text-gray-400 italic">No active projects — all done!</p>
           )}
 
           {hasMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
-              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
-                Load more
-              </Button>
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
               <p className="text-xs text-gray-400">{projects.length} of {totalCount} projects loaded</p>
             </div>
           )}
@@ -295,9 +347,15 @@ export function ProjectsPage() {
                 Completed ({completedProjects.length})
               </button>
               {showCompleted && (
-                <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-                  {completedProjects.map(p => <ProjectRow key={p.id} p={p} isCompleted />)}
-                </div>
+                view === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {completedProjects.map(p => <ProjectCard key={p.id} p={p} isCompleted />)}
+                  </div>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                    {completedProjects.map(p => <ProjectRow key={p.id} p={p} isCompleted />)}
+                  </div>
+                )
               )}
             </div>
           )}

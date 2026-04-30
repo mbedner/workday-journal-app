@@ -11,6 +11,8 @@ import { Select } from '../components/ui/Select'
 import { StarRating } from '../components/ui/StarRating'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
+import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
+import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
 const PAGE_SIZE = 60
 
@@ -30,7 +32,6 @@ function stripMarkup(text: string): string {
     .trim()
 }
 
-// entryId → [project names]
 type ProjectMap = Record<string, string[]>
 
 export function JournalListPage() {
@@ -46,8 +47,16 @@ export function JournalListPage() {
   const [projectFilter, setProjectFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem('journal-view') as ViewMode) ?? 'list'
+  )
 
   const today = format(new Date(), 'yyyy-MM-dd')
+
+  const handleViewChange = (v: ViewMode) => {
+    setView(v)
+    localStorage.setItem('journal-view', v)
+  }
 
   const fetchProjectMap = async () => {
     const { data } = await supabase
@@ -67,12 +76,10 @@ export function JournalListPage() {
       .from('journal_entries')
       .select('*', { count: 'exact' })
       .is('archived_at', null)
-    // rating filter is server-side so totalCount and pagination stay accurate
     if (ratingFilter) q = q.eq('productivity_rating', parseInt(ratingFilter))
     return q.order('entry_date', { ascending: sort === 'oldest' }).range(from, to)
   }
 
-  // Reset and re-fetch when sort or rating filter changes
   useEffect(() => {
     setLoading(true)
     setEntries([])
@@ -95,7 +102,6 @@ export function JournalListPage() {
 
   const hasMore = entries.length < totalCount
 
-  // ratingFilter is server-side; only project + search remain client-side
   const filtered = useMemo(() => entries.filter(e => {
     if (projectFilter) {
       const eProjects = projectMap[e.id] ?? []
@@ -114,12 +120,10 @@ export function JournalListPage() {
     return true
   }), [entries, search, projectFilter, projectMap])
 
-  // Load more is only valid when no client-side-only filters are active
   const canLoadMore = hasMore && !search && !projectFilter
 
-  // Group by month/year when not filtering
   const grouped = useMemo(() => {
-    if (search || ratingFilter || projectFilter) return null
+    if (search || ratingFilter || projectFilter || view === 'grid' || view === 'calendar') return null
     const groups = new Map<string, JournalEntry[]>()
     for (const entry of filtered) {
       const key = format(new Date(entry.entry_date + 'T12:00:00'), 'MMMM yyyy')
@@ -127,7 +131,25 @@ export function JournalListPage() {
       groups.get(key)!.push(entry)
     }
     return Array.from(groups.entries())
-  }, [filtered, search, ratingFilter, projectFilter])
+  }, [filtered, search, ratingFilter, projectFilter, view])
+
+  const calendarItems: CalendarItem[] = useMemo(() => filtered.map(e => ({
+    id: e.id,
+    date: e.entry_date,
+    label: e.focus ? stripMarkup(e.focus).slice(0, 40) || 'Journal entry' : 'Journal entry',
+    url: `/journal/${e.entry_date}`,
+    color: 'indigo',
+  })), [filtered])
+
+  const isFiltering = !!(search || ratingFilter || projectFilter)
+
+  const subtitle = loading
+    ? 'Loading…'
+    : search || projectFilter
+      ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${entries.length} loaded)` : ''}`
+      : `${totalCount} entr${totalCount !== 1 ? 'ies' : 'y'}${canLoadMore ? ` · ${entries.length} loaded` : ''}`
+
+  // ─── Sub-components ───────────────────────────────────────────────────────
 
   const EntryRow = ({ entry }: { entry: JournalEntry }) => {
     const eProjects = projectMap[entry.id] ?? []
@@ -162,13 +184,42 @@ export function JournalListPage() {
     )
   }
 
-  const isFiltering = !!(search || ratingFilter || projectFilter)
-
-  const subtitle = loading
-    ? 'Loading…'
-    : search || projectFilter
-      ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${entries.length} loaded)` : ''}`
-      : `${totalCount} entr${totalCount !== 1 ? 'ies' : 'y'}${canLoadMore ? ` · ${entries.length} loaded` : ''}`
+  const EntryCard = ({ entry }: { entry: JournalEntry }) => {
+    const eProjects = projectMap[entry.id] ?? []
+    const isToday = entry.entry_date === today
+    return (
+      <Link
+        to={`/journal/${entry.entry_date}`}
+        className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm hover:border-indigo-200 transition-all group"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-400">
+              {format(new Date(entry.entry_date + 'T12:00:00'), 'EEE, MMM d, yyyy')}
+            </p>
+            {isToday && (
+              <span className="inline-block mt-0.5 text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
+            )}
+          </div>
+          {entry.productivity_rating && (
+            <StarRating value={entry.productivity_rating} readonly />
+          )}
+        </div>
+        {entry.focus && (
+          <p className="text-sm text-gray-700 line-clamp-3 leading-snug flex-1">
+            {stripMarkup(entry.focus)}
+          </p>
+        )}
+        {eProjects.length > 0 && (
+          <div className="flex gap-1 flex-wrap mt-auto pt-1">
+            {eProjects.map(p => (
+              <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+            ))}
+          </div>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -177,9 +228,12 @@ export function JournalListPage() {
           <h1 className="text-xl font-bold text-gray-900">Journal</h1>
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
-        <Button onClick={() => navigate(`/journal/${today}`)}>
-          {entries.some(e => e.entry_date === today) ? "Open today's entry" : "Start today's entry"}
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewToggle value={view} onChange={handleViewChange} />
+          <Button onClick={() => navigate(`/journal/${today}`)}>
+            {entries.some(e => e.entry_date === today) ? "Open today's entry" : "Start today's entry"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -199,10 +253,12 @@ export function JournalListPage() {
           <option value="">All ratings</option>
           {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} stars</option>)}
         </Select>
-        <Select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="w-32">
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-        </Select>
+        {view !== 'calendar' && (
+          <Select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="w-32">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+          </Select>
+        )}
       </div>
 
       {loading ? (
@@ -213,8 +269,22 @@ export function JournalListPage() {
           description="Start today's journal to capture what you worked on, what moved forward, and what still needs attention."
           action={!isFiltering ? { label: "Start today's entry", onClick: () => navigate(`/journal/${today}`) } : undefined}
         />
+      ) : view === 'calendar' ? (
+        <CalendarView items={calendarItems} />
+      ) : view === 'grid' ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map(entry => <EntryCard key={entry.id} entry={entry} />)}
+          </div>
+          {canLoadMore && (
+            <div className="flex flex-col items-center gap-1 pt-2">
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
+              <p className="text-xs text-gray-400">{entries.length} of {totalCount} entries loaded</p>
+            </div>
+          )}
+        </>
       ) : grouped ? (
-        /* Grouped by month view */
+        /* Grouped list by month */
         <div className="space-y-6">
           {grouped.map(([monthLabel, monthEntries]) => (
             <div key={monthLabel}>
@@ -227,18 +297,15 @@ export function JournalListPage() {
               </div>
             </div>
           ))}
-
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
-              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
-                Load more
-              </Button>
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
               <p className="text-xs text-gray-400">{entries.length} of {totalCount} entries loaded</p>
             </div>
           )}
         </div>
       ) : (
-        /* Flat search/filter results */
+        /* Flat search/filter list */
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(entry => <EntryRow key={entry.id} entry={entry} />)}
         </div>

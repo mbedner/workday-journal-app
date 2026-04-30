@@ -11,6 +11,8 @@ import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
+import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
+import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
 const PAGE_SIZE = 30
 
@@ -52,6 +54,11 @@ export function TranscriptsListPage() {
   const [sort, setSort] = useState('date-desc')
   const [projectFilter, setProjectFilter] = useState('')
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
+
+  const [view, setView] = useState<ViewMode>(
+    () => (localStorage.getItem('transcripts-view') as ViewMode) ?? 'list'
+  )
+  const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('transcripts-view', v) }
 
   const [modalOpen, setModalOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -125,9 +132,9 @@ export function TranscriptsListPage() {
     )
   }), [transcripts, search, projectFilter, projectMap])
 
-  // Group by month when not searching/filtering
+  // Group by month only in list view without filters
   const grouped = useMemo(() => {
-    if (search || projectFilter) return null
+    if (search || projectFilter || view === 'grid' || view === 'calendar') return null
     const groups = new Map<string, Transcript[]>()
     for (const t of filtered) {
       const key = monthLabel(t)
@@ -135,7 +142,17 @@ export function TranscriptsListPage() {
       groups.get(key)!.push(t)
     }
     return Array.from(groups.entries())
-  }, [filtered, search, projectFilter])
+  }, [filtered, search, projectFilter, view])
+
+  const calendarItems: CalendarItem[] = useMemo(() => filtered
+    .filter(t => t.meeting_date)
+    .map(t => ({
+      id: t.id,
+      date: t.meeting_date!,
+      label: t.meeting_title,
+      url: `/transcripts/${t.id}`,
+      color: 'indigo' as const,
+    })), [filtered])
 
   const openModal = () => { setNewTitle(''); setModalOpen(true) }
 
@@ -193,7 +210,10 @@ export function TranscriptsListPage() {
           <h1 className="text-xl font-bold text-gray-900">Meeting Notes</h1>
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
-        <Button onClick={openModal}>+ New meeting note</Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewToggle value={view} onChange={handleViewChange} />
+          <Button onClick={openModal}>+ New meeting note</Button>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -220,8 +240,62 @@ export function TranscriptsListPage() {
           description="Paste meeting notes here so decisions, action items, and follow-ups are easier to find later."
           action={!search && !projectFilter ? { label: '+ New meeting note', onClick: openModal } : undefined}
         />
+      ) : view === 'calendar' ? (
+        <>
+          <CalendarView items={calendarItems} />
+          {filtered.filter(t => !t.meeting_date).length > 0 && (
+            <p className="text-xs text-gray-400 text-center">
+              {filtered.filter(t => !t.meeting_date).length} meeting{filtered.filter(t => !t.meeting_date).length !== 1 ? 's' : ''} without a date not shown on calendar.
+            </p>
+          )}
+        </>
+      ) : view === 'grid' ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map(t => {
+              const tProjects = projectMap[t.id] ?? []
+              const dateLabel = t.meeting_date
+                ? (() => { try { return format(new Date(t.meeting_date + 'T12:00:00'), 'MMM d, yyyy') } catch { return t.meeting_date } })()
+                : null
+              return (
+                <Link
+                  key={t.id}
+                  to={`/transcripts/${t.id}`}
+                  className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm hover:border-indigo-200 transition-all"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 line-clamp-2">{t.meeting_title}</p>
+                    {(dateLabel || t.attendees) && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        {[dateLabel, t.attendees].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  {(t.summary || t.raw_transcript) && (
+                    <p className="text-xs text-gray-500 line-clamp-3 flex-1 leading-relaxed">
+                      {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
+                    </p>
+                  )}
+                  {tProjects.length > 0 && (
+                    <div className="flex gap-1 flex-wrap mt-auto pt-1">
+                      {tProjects.map(p => (
+                        <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+          {canLoadMore && (
+            <div className="flex flex-col items-center gap-1 pt-2">
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
+              <p className="text-xs text-gray-400">{transcripts.length} of {totalCount} meetings loaded</p>
+            </div>
+          )}
+        </>
       ) : grouped ? (
-        /* Grouped by month view */
+        /* Grouped list by month */
         <div className="space-y-6">
           {grouped.map(([label, items]) => (
             <div key={label}>
@@ -234,18 +308,15 @@ export function TranscriptsListPage() {
               </div>
             </div>
           ))}
-
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
-              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
-                Load more
-              </Button>
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
               <p className="text-xs text-gray-400">{transcripts.length} of {totalCount} meetings loaded</p>
             </div>
           )}
         </div>
       ) : (
-        /* Flat search/filter results */
+        /* Flat search/filter list */
         <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
           {filtered.map(t => <TranscriptRow key={t.id} t={t} />)}
         </div>
