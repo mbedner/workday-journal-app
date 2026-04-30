@@ -25,7 +25,7 @@ export function TranscriptDetailPage() {
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
-  const knownAttendees = useAttendees()
+  const { names: knownAttendees, syncNames: syncAttendees } = useAttendees()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -122,6 +122,9 @@ export function TranscriptDetailPage() {
       const tagRows = tagIds.filter(Boolean).map(tid => ({ user_id: user!.id, transcript_id: id!, tag_id: tid }))
       if (projRows.length) await supabase.from('transcript_projects').insert(projRows)
       if (tagRows.length) await supabase.from('transcript_tags').insert(tagRows)
+
+      // Persist new attendee names so they appear in future suggestions
+      if (attendees.length) await syncAttendees(attendees)
 
       addToast('Saved', 'success')
       setIsEditing(false)

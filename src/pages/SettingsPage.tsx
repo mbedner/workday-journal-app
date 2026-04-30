@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RiShieldCheckLine, RiShieldLine } from '@remixicon/react'
+import { RiCheckLine, RiCloseLine, RiPencilLine, RiShieldCheckLine, RiShieldLine, RiUserLine } from '@remixicon/react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { useAttendees } from '../hooks/useAttendees'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
@@ -13,6 +14,24 @@ export function SettingsPage() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { attendees, loading: attendeesLoading, rename: renameAttendee, remove: removeAttendee } = useAttendees()
+
+  // Inline rename state
+  const [editingAttendeeId, setEditingAttendeeId] = useState<string | null>(null)
+  const [editingAttendeeName, setEditingAttendeeName] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  const startRename = (id: string, currentName: string) => {
+    setEditingAttendeeId(id)
+    setEditingAttendeeName(currentName)
+    setTimeout(() => renameInputRef.current?.focus(), 30)
+  }
+
+  const commitRename = async () => {
+    if (!editingAttendeeId || !editingAttendeeName.trim()) { setEditingAttendeeId(null); return }
+    await renameAttendee(editingAttendeeId, editingAttendeeName)
+    setEditingAttendeeId(null)
+  }
   const [exporting, setExporting] = useState(false)
   const [signOutModal, setSignOutModal] = useState(false)
 
@@ -149,6 +168,65 @@ export function SettingsPage() {
             )
           )}
         </div>
+      </Card>
+
+      {/* Attendees management */}
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <RiUserLine size={15} className="text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-900">Known attendees</h2>
+        </div>
+        {attendeesLoading ? (
+          <p className="text-xs text-gray-400">Loading…</p>
+        ) : attendees.length === 0 ? (
+          <p className="text-xs text-gray-400">No attendees saved yet. They'll appear here after you save a meeting note with attendees filled in.</p>
+        ) : (
+          <ul className="space-y-1">
+            {attendees.map(a => (
+              <li key={a.id} className="flex items-center gap-2 group/att py-0.5">
+                {editingAttendeeId === a.id ? (
+                  <>
+                    <input
+                      ref={renameInputRef}
+                      value={editingAttendeeName}
+                      onChange={e => setEditingAttendeeName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') commitRename()
+                        if (e.key === 'Escape') setEditingAttendeeId(null)
+                      }}
+                      className="flex-1 text-sm px-2 py-0.5 rounded border border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <button onClick={commitRename} className="p-1 text-green-500 hover:text-green-700 transition rounded" title="Save">
+                      <RiCheckLine size={14} />
+                    </button>
+                    <button onClick={() => setEditingAttendeeId(null)} className="p-1 text-gray-400 hover:text-gray-600 transition rounded" title="Cancel">
+                      <RiCloseLine size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm text-gray-700">{a.name}</span>
+                    <button
+                      onClick={() => startRename(a.id, a.name)}
+                      className="opacity-0 group-hover/att:opacity-100 transition-opacity p-1 text-gray-400 hover:text-indigo-600 rounded"
+                      title="Rename"
+                    >
+                      <RiPencilLine size={13} />
+                    </button>
+                    <button
+                      onClick={() => removeAttendee(a.id)}
+                      className="opacity-0 group-hover/att:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500 rounded"
+                      title="Remove"
+                    >
+                      <RiCloseLine size={14} />
+                    </button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-gray-400 mt-3">Renaming or removing here only affects suggestions — existing meeting notes are not changed.</p>
       </Card>
 
       <Card>
