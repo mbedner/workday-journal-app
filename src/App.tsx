@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { JournalListPage } from './pages/JournalListPage'
 import { JournalDetailPage } from './pages/JournalDetailPage'
 import { TasksPage } from './pages/TasksPage'
+import { TaskDetailPage } from './pages/TaskDetailPage'
 import { TranscriptsListPage } from './pages/TranscriptsListPage'
 import { TranscriptDetailPage } from './pages/TranscriptDetailPage'
 import { SearchPage } from './pages/SearchPage'
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/journal" element={<JournalListPage />} />
             <Route path="/journal/:date" element={<JournalDetailPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/tasks/:id" element={<TaskDetailPage />} />
             <Route path="/transcripts" element={<TranscriptsListPage />} />
             <Route path="/transcripts/:id" element={<TranscriptDetailPage />} />
             <Route path="/search" element={<SearchPage />} />

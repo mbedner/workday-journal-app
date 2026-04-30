@@ -141,7 +141,7 @@ export function DashboardPage() {
         id: `task-${t.id}`,
         date: t.due_date!,
         label: t.title,
-        url: '/tasks',
+        url: `/tasks/${t.id}`,
         color: (overdue || t.priority === 'high' ? 'red' : 'yellow') as 'red' | 'yellow',
       }
     }),
@@ -312,7 +312,7 @@ export function DashboardPage() {
                           {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
                         </div>
                       </div>
-                      <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
+                      <Link to={`/tasks/${task.id}`} className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
                         <RiArrowRightSLine size={18} />
                       </Link>
                     </li>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine } from '@remixicon/react'
 import { format, parseISO, isToday, isPast } from 'date-fns'
@@ -305,7 +306,7 @@ export function TasksPage() {
         id: t.id,
         date: t.due_date!,
         label: t.title,
-        onClick: () => openEdit(t),
+        url: `/tasks/${t.id}`,
         color: isDone ? 'gray' : isOverdue ? 'red' : t.priority === 'high' ? 'red' : t.priority === 'medium' ? 'yellow' : 'indigo',
       }
     }), [filtered]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -466,7 +467,7 @@ export function TasksPage() {
                       : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                     }
                   </motion.button>
-                  <div className="flex-1 min-w-0">
+                  <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
                     <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
                       {task.title}
                     </p>
@@ -490,7 +491,7 @@ export function TasksPage() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
                       <RiPencilLine size={14} />
