@@ -75,9 +75,8 @@ export function TranscriptDetailPage() {
       }
       setSelectedProjects((tp ?? []).map((r: any) => r.projects?.name).filter(Boolean))
       setSelectedTags((tt ?? []).map((r: any) => r.tags?.name).filter(Boolean))
-      // Existing transcript — view mode by default
-      const isNew = t.meeting_title === 'New Meeting' && !t.raw_transcript && !t.summary
-      setIsEditing(isNew)
+      // Always open in edit mode
+      setIsEditing(true)
       setLoading(false)
     })
   }, [id, navigate])
