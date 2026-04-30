@@ -11,8 +11,8 @@ export function SkListCard({ rows = 4 }: { rows?: number }) {
     <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3.5">
-          <div className="flex-1 space-y-2">
-            <Sk className="h-3.5 w-48" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <Sk className="h-3.5 w-48 max-w-full" />
             <Sk className="h-2.5 w-72 max-w-full" />
           </div>
           <Sk className="h-4 w-4 rounded-full shrink-0" />

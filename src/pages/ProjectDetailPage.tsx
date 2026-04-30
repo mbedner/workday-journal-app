@@ -45,13 +45,14 @@ function StatCard({ label, value, icon: Icon, color }: {
   color: string
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center gap-4">
-      <div className={`p-2.5 rounded-lg ${color}`}>
-        <Icon size={18} className="text-white" />
+    <div className="bg-white border border-gray-200 rounded-xl p-3 sm:px-5 sm:py-4 flex flex-col sm:flex-row items-center sm:items-start gap-1.5 sm:gap-4 text-center sm:text-left">
+      <div className={`p-2 sm:p-2.5 rounded-lg ${color} shrink-0`}>
+        <Icon size={16} className="text-white sm:hidden" />
+        <Icon size={18} className="text-white hidden sm:block" />
       </div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-xs text-gray-500 font-medium">{label}</p>
+      <div className="min-w-0">
+        <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
+        <p className="text-[11px] sm:text-xs text-gray-500 font-medium leading-tight mt-0.5">{label}</p>
       </div>
     </div>
   )
@@ -146,11 +147,11 @@ export function ProjectDetailPage() {
       </div>
       <div className="grid grid-cols-3 gap-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center gap-4">
-            <Sk className="h-10 w-10 rounded-lg shrink-0" />
-            <div className="space-y-2 flex-1">
-              <Sk className="h-6 w-8" />
-              <Sk className="h-2.5 w-20" />
+          <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 sm:px-5 sm:py-4 flex flex-col sm:flex-row items-center sm:items-start gap-1.5 sm:gap-4">
+            <Sk className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg shrink-0" />
+            <div className="space-y-1.5 sm:space-y-2 flex-1 min-w-0 flex flex-col items-center sm:items-start">
+              <Sk className="h-6 w-6" />
+              <Sk className="h-2 w-10 max-w-full sm:w-16" />
             </div>
           </div>
         ))}
