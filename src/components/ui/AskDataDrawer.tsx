@@ -448,10 +448,7 @@ export function AskDataDrawer({ open, onClose }: Props) {
                             : msg.content
                           return (
                             <div className="space-y-3">
-                              <div className="flex items-start gap-2.5">
-                                <div className={`shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center ${msg.isStreaming ? 'animate-pulse' : ''}`}>
-                                  <RiSparklingLine size={12} className="text-indigo-600" />
-                                </div>
+                              <div className="flex items-start">
                                 <div className="flex-1 min-w-0">
                                   <MarkdownContent
                                     content={displayed}
@@ -464,7 +461,7 @@ export function AskDataDrawer({ open, onClose }: Props) {
                               </div>
 
                               {!msg.isStreaming && msg.sources && msg.sources.length > 0 && (
-                                <div className="ml-8 space-y-2">
+                                <div className="mt-3 space-y-2">
                                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Sources</p>
                                   {msg.sources.map(source => (
                                     <SourceCard key={`${source.type}-${source.id}`} source={source} onClose={onClose} />
