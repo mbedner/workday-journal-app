@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
-import { Textarea } from '../components/ui/Textarea'
+import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { TagInput } from '../components/ui/TagInput'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -18,6 +18,11 @@ import { SkListCard } from '../components/ui/Skeleton'
 
 type Status = Task['status']
 type Priority = Task['priority']
+
+function stripMarkup(text: string): string {
+  if (!text) return ''
+  return text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim()
+}
 
 const priorityVariants: Record<Priority, 'red' | 'yellow' | 'gray'> = {
   high: 'red', medium: 'yellow', low: 'gray',
@@ -374,7 +379,7 @@ export function TasksPage() {
                       </span>
                     )}
                     {task.notes && (
-                      <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{task.notes}</span>
+                      <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
                     )}
                     {(subtaskMap[task.id]?.length ?? 0) > 0 && (
                       <span className="text-xs text-gray-400 flex items-center gap-0.5">
@@ -414,7 +419,7 @@ export function TasksPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTask ? 'Edit task' : 'Add task'}>
         <div className="space-y-4">
           <Input label="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Task title" required autoFocus />
-          <Textarea label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Optional notes..." rows={3} />
+          <RichTextEditor label="Notes" value={form.notes} onChange={html => setForm({ ...form, notes: html })} placeholder="Optional notes, links to PBIs, context..." minHeight={100} />
           <TagInput
             label="Projects"
             values={selectedProjects}

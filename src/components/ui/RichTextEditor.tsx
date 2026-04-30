@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -17,6 +17,10 @@ import {
   RiArrowGoBackLine,
   RiArrowGoForwardLine,
   RiSeparator,
+  RiLink,
+  RiLinkUnlink,
+  RiExternalLinkLine,
+  RiCloseLine,
 } from '@remixicon/react'
 
 interface Props {
@@ -63,20 +67,37 @@ function ToolbarButton({
 // Convert existing plain text / markdown to HTML for Tiptap
 function toHtml(content: string): string {
   if (!content) return ''
-  // Already HTML
   if (content.trim().startsWith('<')) return content
-  // Parse markdown → HTML
   return marked.parse(content) as string
 }
 
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (/^mailto:/i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
 export function RichTextEditor({ label, value, onChange, placeholder, minHeight = 160 }: Props) {
+  const [linkInputOpen, setLinkInputOpen] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const linkInputRef = useRef<HTMLInputElement>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
       }),
       Underline,
-      Link.configure({ openOnClick: false }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          target: '_blank',
+          rel: 'noopener noreferrer',
+          class: 'text-indigo-600 underline underline-offset-2 hover:text-indigo-800 transition-colors cursor-pointer',
+        },
+      }),
       Placeholder.configure({ placeholder: placeholder ?? 'Start writing…' }),
     ],
     content: toHtml(value),
@@ -112,7 +133,37 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
     }
   }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close link input when editor selection moves away from a link
+  useEffect(() => {
+    if (!editor || linkInputOpen) return
+    // nothing extra needed — handled via onSelectionUpdate below
+  }, [editor, linkInputOpen])
+
   if (!editor) return null
+
+  const isInLink = editor.isActive('link')
+  const activeLinkHref: string = isInLink ? (editor.getAttributes('link').href ?? '') : ''
+
+  const openLinkInput = () => {
+    setLinkUrl(isInLink ? activeLinkHref : '')
+    setLinkInputOpen(true)
+    setTimeout(() => linkInputRef.current?.focus(), 30)
+  }
+
+  const applyLink = () => {
+    const normalized = normalizeUrl(linkUrl)
+    if (!normalized) {
+      editor.chain().focus().unsetLink().run()
+    } else {
+      editor.chain().focus().setLink({ href: normalized }).run()
+    }
+    setLinkInputOpen(false)
+  }
+
+  const removeLink = () => {
+    editor.chain().focus().unsetLink().run()
+    setLinkInputOpen(false)
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -157,6 +208,12 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
 
           <div className="w-px h-4 bg-gray-200 mx-1" />
 
+          <ToolbarButton title={isInLink ? 'Edit link' : 'Insert link'} onClick={openLinkInput} active={isInLink}>
+            <RiLink size={14} />
+          </ToolbarButton>
+
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+
           <ToolbarButton title="Undo" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
             <RiArrowGoBackLine size={14} />
           </ToolbarButton>
@@ -164,6 +221,80 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
             <RiArrowGoForwardLine size={14} />
           </ToolbarButton>
         </div>
+
+        {/* Floating link bar — shown when cursor is inside an existing link */}
+        {isInLink && !linkInputOpen && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50/60 border-b border-indigo-100 text-xs">
+            <RiLink size={12} className="text-indigo-400 shrink-0" />
+            <span className="text-indigo-700 truncate flex-1 max-w-xs font-mono">{activeLinkHref}</span>
+            <button
+              type="button"
+              title="Open link in new tab"
+              onClick={() => window.open(activeLinkHref, '_blank', 'noopener,noreferrer')}
+              className="shrink-0 p-1 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 rounded transition-colors"
+            >
+              <RiExternalLinkLine size={13} />
+            </button>
+            <button
+              type="button"
+              title="Edit link"
+              onClick={openLinkInput}
+              className="shrink-0 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            >
+              <RiLink size={13} />
+            </button>
+            <button
+              type="button"
+              title="Remove link"
+              onClick={removeLink}
+              className="shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+            >
+              <RiLinkUnlink size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* URL input bar — shown when adding or editing a link */}
+        {linkInputOpen && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50/40 border-b border-indigo-100">
+            <RiLink size={13} className="text-indigo-400 shrink-0" />
+            <input
+              ref={linkInputRef}
+              type="url"
+              value={linkUrl}
+              onChange={e => setLinkUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="flex-1 text-sm px-2 py-1 rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-400 min-w-0"
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); applyLink() }
+                if (e.key === 'Escape') setLinkInputOpen(false)
+              }}
+            />
+            <button
+              type="button"
+              onClick={applyLink}
+              className="shrink-0 text-xs px-2.5 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium"
+            >
+              {isInLink ? 'Update' : 'Set'}
+            </button>
+            {isInLink && (
+              <button
+                type="button"
+                onClick={removeLink}
+                className="shrink-0 text-xs px-2.5 py-1 text-red-600 hover:bg-red-50 rounded-md transition-colors font-medium"
+              >
+                Remove
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setLinkInputOpen(false)}
+              className="shrink-0 p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
+            >
+              <RiCloseLine size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Editor content */}
         <EditorContent
