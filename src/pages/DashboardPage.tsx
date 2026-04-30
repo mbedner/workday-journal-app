@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval } from 'date-fns'
+import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval, subMonths, addMonths, isPast, isToday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
 import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine, RiSparklingLine } from '@remixicon/react'
@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/Badge'
 import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
 import { WeeklyRecapModal } from '../components/ui/WeeklyRecapModal'
+import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -57,9 +58,16 @@ export function DashboardPage() {
   const [toggling, setToggling] = useState<string | null>(null)
   const [recapOpen, setRecapOpen] = useState(false)
 
+  // Calendar data — 6 months back to 6 months forward
+  const [calJournals, setCalJournals]     = useState<{ id: string; entry_date: string; focus: string | null }[]>([])
+  const [calTranscripts, setCalTranscripts] = useState<{ id: string; meeting_title: string; meeting_date: string }[]>([])
+  const [calTasks, setCalTasks]           = useState<{ id: string; title: string; due_date: string; priority: string; status: string }[]>([])
+
   useEffect(() => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
     const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    const calFrom = format(subMonths(new Date(), 6), 'yyyy-MM-dd')
+    const calTo   = format(addMonths(new Date(), 6), 'yyyy-MM-dd')
 
     Promise.all([
       supabase.from('journal_entries').select('*').eq('entry_date', today).maybeSingle(),
@@ -67,12 +75,19 @@ export function DashboardPage() {
       supabase.from('transcripts').select('*').is('archived_at', null).order('created_at', { ascending: false }).limit(5),
       supabase.from('tasks').select('*').is('archived_at', null).gte('updated_at', weekStart).lte('updated_at', weekEnd + 'T23:59:59'),
       supabase.from('journal_entries').select('*').gte('entry_date', weekStart).lte('entry_date', weekEnd),
-    ]).then(([je, tasks, transcripts, wt, we]) => {
+      // Calendar feeds
+      supabase.from('journal_entries').select('id, entry_date, focus').is('archived_at', null).gte('entry_date', calFrom).lte('entry_date', calTo),
+      supabase.from('transcripts').select('id, meeting_title, meeting_date').is('archived_at', null).not('meeting_date', 'is', null).gte('meeting_date', calFrom).lte('meeting_date', calTo),
+      supabase.from('tasks').select('id, title, due_date, priority, status').is('archived_at', null).not('due_date', 'is', null).gte('due_date', calFrom).lte('due_date', calTo),
+    ]).then(([je, tasks, transcripts, wt, we, cj, ct, ctasks]) => {
       setTodayEntry(je.data)
       setOpenTasks(tasks.data ?? [])
       setRecentTranscripts(transcripts.data ?? [])
       setWeekTasks(wt.data ?? [])
       setWeekEntries(we.data ?? [])
+      setCalJournals(cj.data ?? [])
+      setCalTranscripts(ct.data ?? [])
+      setCalTasks(ctasks.data ?? [])
       setLoading(false)
     })
   }, [today])
@@ -98,6 +113,36 @@ export function DashboardPage() {
   const avgRating = weekEntries.filter(e => e.productivity_rating).length > 0
     ? (weekEntries.reduce((s, e) => s + (e.productivity_rating ?? 0), 0) / weekEntries.filter(e => e.productivity_rating).length).toFixed(1)
     : '—'
+
+  const calendarItems: CalendarItem[] = useMemo(() => [
+    // Journal entries — indigo
+    ...calJournals.map(e => ({
+      id: `j-${e.id}`,
+      date: e.entry_date,
+      label: e.focus ? e.focus.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 40) || 'Journal' : 'Journal',
+      url: `/journal/${e.entry_date}`,
+      color: 'indigo' as const,
+    })),
+    // Meeting notes — green
+    ...calTranscripts.map(t => ({
+      id: `t-${t.id}`,
+      date: t.meeting_date!,
+      label: t.meeting_title,
+      url: `/transcripts/${t.id}`,
+      color: 'green' as const,
+    })),
+    // Tasks by due date — yellow or red if overdue/high priority
+    ...calTasks.map(t => {
+      const overdue = t.status !== 'done' && t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date))
+      return {
+        id: `task-${t.id}`,
+        date: t.due_date!,
+        label: t.title,
+        url: '/tasks',
+        color: (t.status === 'done' ? 'gray' : overdue || t.priority === 'high' ? 'red' : 'yellow') as 'gray' | 'red' | 'yellow',
+      }
+    }),
+  ], [calJournals, calTranscripts, calTasks])
 
   if (loading) return (
     <div className="space-y-8 animate-pulse">
@@ -288,6 +333,19 @@ export function DashboardPage() {
           )}
         </section>
       </div>
+
+      {/* Combined calendar */}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Calendar</h3>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Journal</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Meetings</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Tasks</span>
+          </div>
+        </div>
+        <CalendarView items={calendarItems} />
+      </section>
 
       <WeeklyRecapModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>
