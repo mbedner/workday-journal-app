@@ -59,9 +59,10 @@ export function DashboardPage() {
   const [recapOpen, setRecapOpen] = useState(false)
 
   // Calendar data — 6 months back to 6 months forward
-  const [calJournals, setCalJournals]     = useState<{ id: string; entry_date: string; focus: string | null }[]>([])
+  const [calJournals, setCalJournals]       = useState<{ id: string; entry_date: string; focus: string | null }[]>([])
   const [calTranscripts, setCalTranscripts] = useState<{ id: string; meeting_title: string; meeting_date: string }[]>([])
-  const [calTasks, setCalTasks]           = useState<{ id: string; title: string; due_date: string; priority: string; status: string }[]>([])
+  const [calTasks, setCalTasks]             = useState<{ id: string; title: string; due_date: string; priority: string; status: string }[]>([])
+  const [calDoneTasks, setCalDoneTasks]     = useState<{ id: string; title: string; completed_at: string }[]>([])
 
   useEffect(() => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -78,8 +79,9 @@ export function DashboardPage() {
       // Calendar feeds
       supabase.from('journal_entries').select('id, entry_date, focus').is('archived_at', null).gte('entry_date', calFrom).lte('entry_date', calTo),
       supabase.from('transcripts').select('id, meeting_title, meeting_date').is('archived_at', null).not('meeting_date', 'is', null).gte('meeting_date', calFrom).lte('meeting_date', calTo),
-      supabase.from('tasks').select('id, title, due_date, priority, status').is('archived_at', null).not('due_date', 'is', null).gte('due_date', calFrom).lte('due_date', calTo),
-    ]).then(([je, tasks, transcripts, wt, we, cj, ct, ctasks]) => {
+      supabase.from('tasks').select('id, title, due_date, priority, status').is('archived_at', null).neq('status', 'done').not('due_date', 'is', null).gte('due_date', calFrom).lte('due_date', calTo),
+      supabase.from('tasks').select('id, title, completed_at').is('archived_at', null).eq('status', 'done').not('completed_at', 'is', null).gte('completed_at', calFrom).lte('completed_at', calTo),
+    ]).then(([je, tasks, transcripts, wt, we, cj, ct, ctasks, cdonetasks]) => {
       setTodayEntry(je.data)
       setOpenTasks(tasks.data ?? [])
       setRecentTranscripts(transcripts.data ?? [])
@@ -88,6 +90,7 @@ export function DashboardPage() {
       setCalJournals(cj.data ?? [])
       setCalTranscripts(ct.data ?? [])
       setCalTasks(ctasks.data ?? [])
+      setCalDoneTasks(cdonetasks.data ?? [])
       setLoading(false)
     })
   }, [today])
@@ -123,7 +126,7 @@ export function DashboardPage() {
       url: `/journal/${e.entry_date}`,
       color: 'indigo' as const,
     })),
-    // Meeting notes — green
+    // Meeting notes — indigo-ish (using gray to distinguish from journals)
     ...calTranscripts.map(t => ({
       id: `t-${t.id}`,
       date: t.meeting_date!,
@@ -131,18 +134,26 @@ export function DashboardPage() {
       url: `/transcripts/${t.id}`,
       color: 'green' as const,
     })),
-    // Tasks by due date — yellow or red if overdue/high priority
+    // Open/in-progress/blocked tasks by due date — yellow or red if overdue/high priority
     ...calTasks.map(t => {
-      const overdue = t.status !== 'done' && t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date))
+      const overdue = t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date))
       return {
         id: `task-${t.id}`,
         date: t.due_date!,
         label: t.title,
         url: '/tasks',
-        color: (t.status === 'done' ? 'gray' : overdue || t.priority === 'high' ? 'red' : 'yellow') as 'gray' | 'red' | 'yellow',
+        color: (overdue || t.priority === 'high' ? 'red' : 'yellow') as 'red' | 'yellow',
       }
     }),
-  ], [calJournals, calTranscripts, calTasks])
+    // Completed tasks by completion date — gray
+    ...calDoneTasks.map(t => ({
+      id: `done-${t.id}`,
+      date: t.completed_at.slice(0, 10),
+      label: t.title,
+      url: '/tasks',
+      color: 'gray' as const,
+    })),
+  ], [calJournals, calTranscripts, calTasks, calDoneTasks])
 
   if (loading) return (
     <div className="space-y-8 animate-pulse">
@@ -192,12 +203,14 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
+
+      {/* Greeting */}
       <div>
         <h2 className="text-xl font-bold text-gray-900">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}</h2>
         <p className="text-sm text-gray-500">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
       </div>
 
-      {/* Today's journal */}
+      {/* Today's journal — full width */}
       <section>
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Today</h3>
         <Card>
@@ -213,9 +226,7 @@ export function DashboardPage() {
                   <StarRating value={todayEntry.productivity_rating} readonly />
                 </div>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => navigate(`/journal/${today}`)}>
-                Open
-              </Button>
+              <Button variant="secondary" size="sm" onClick={() => navigate(`/journal/${today}`)}>Open</Button>
             </div>
           ) : (
             <div className="flex items-center justify-between gap-4">
@@ -223,128 +234,136 @@ export function DashboardPage() {
                 <p className="text-sm font-medium text-gray-700">No entry yet for today</p>
                 <p className="text-xs text-gray-400 mt-0.5">Capture what you worked on, what moved forward, and what still needs attention.</p>
               </div>
-              <Button size="sm" onClick={() => navigate(`/journal/${today}`)}>
-                Start today's journal
-              </Button>
+              <Button size="sm" onClick={() => navigate(`/journal/${today}`)}>Start today's journal</Button>
             </div>
           )}
         </Card>
       </section>
 
-      {/* Productivity snapshot */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">This week</h3>
-          <button
-            onClick={() => setRecapOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition font-medium"
-          >
-            <RiSparklingLine size={13} /> Weekly recap
-          </button>
-        </div>
-        <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
-          <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
-          <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
-          <StatCard label="In progress" value={inProgressCount} sub="tasks" />
-          <StatCard label="Blocked" value={blockedCount} sub="tasks" />
-          <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
-          <StatCard label="Avg rating" value={avgRating} sub="productivity" />
-        </div>
-      </section>
+      {/* Calendar (left) + sidebar: stats + recent meetings (right) */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Open tasks */}
-        <section>
+        {/* Calendar — wider left column */}
+        <section className="xl:col-span-3">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Open Tasks</h3>
-            <Link to="/tasks" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Calendar</h3>
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Journal</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Meetings</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Tasks</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />Completed</span>
+            </div>
           </div>
-          {openTasks.length === 0 ? (
-            <Card>
-              <p className="text-sm text-gray-400 text-center py-4">No open tasks. Great work!</p>
-            </Card>
-          ) : (
-            <Card padding={false}>
-              <ul className="divide-y divide-gray-100">
-                {openTasks.map(task => {
-                  const isToggling = toggling === task.id
-                  return (
-                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
-                      <motion.button
-                        onClick={() => toggleDone(task)}
-                        disabled={isToggling}
-                        className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
-                        aria-label="Mark complete"
-                        whileTap={{ scale: 0.75 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+          <CalendarView items={calendarItems} />
+        </section>
+
+        {/* Right sidebar */}
+        <div className="xl:col-span-2 space-y-6">
+
+          {/* This week stats */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">This week</h3>
+              <button
+                onClick={() => setRecapOpen(true)}
+                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-indigo-600 transition font-medium"
+              >
+                <RiSparklingLine size={13} /> Recap
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <StatCard label="Completed" value={completedThisWeek} sub="tasks" />
+              <StatCard label="Open" value={openTasks.length - blockedCount} sub="tasks" />
+              <StatCard label="In progress" value={inProgressCount} sub="tasks" />
+              <StatCard label="Blocked" value={blockedCount} sub="tasks" />
+              <StatCard label="Meetings" value={meetingsThisWeek} sub="logged" />
+              <StatCard label="Avg rating" value={avgRating} sub="productivity" />
+            </div>
+          </section>
+
+          {/* Recent meetings */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recent Meetings</h3>
+              <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+            </div>
+            {recentTranscripts.length === 0 ? (
+              <Card>
+                <p className="text-sm text-gray-400 text-center py-4">No meeting notes yet.</p>
+              </Card>
+            ) : (
+              <Card padding={false}>
+                <ul className="divide-y divide-gray-100">
+                  {recentTranscripts.map(t => (
+                    <li key={t.id} className="group">
+                      <Link
+                        to={`/transcripts/${t.id}`}
+                        className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
                       >
-                        {isToggling
-                          ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
-                          : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                        }
-                      </motion.button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
-                        <div className="flex gap-1.5 mt-1 flex-wrap">
-                          <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
-                          <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
-                          {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>
+                          {t.meeting_date && <p className="text-xs text-gray-400">{t.meeting_date}</p>}
+                          {t.summary && <p className="text-xs text-gray-500 truncate mt-0.5">{t.summary}</p>}
                         </div>
-                      </div>
-                      <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5"><RiArrowRightSLine size={18} /></Link>
+                        <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+                      </Link>
                     </li>
-                  )
-                })}
-              </ul>
-            </Card>
-          )}
-        </section>
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </section>
 
-        {/* Recent transcripts */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recent Meetings</h3>
-            <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
-          </div>
-          {recentTranscripts.length === 0 ? (
-            <Card>
-              <p className="text-sm text-gray-400 text-center py-4">No meeting notes yet. Paste your first meeting summary.</p>
-            </Card>
-          ) : (
-            <Card padding={false}>
-              <ul className="divide-y divide-gray-100">
-                {recentTranscripts.map(t => (
-                  <li key={t.id} className="group">
-                    <Link
-                      to={`/transcripts/${t.id}`}
-                      className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{t.meeting_title}</p>
-                        {t.meeting_date && <p className="text-xs text-gray-400">{t.meeting_date}</p>}
-                        {t.summary && <p className="text-xs text-gray-500 truncate mt-0.5">{t.summary}</p>}
-                      </div>
-                      <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-        </section>
+        </div>
       </div>
 
-      {/* Combined calendar */}
+      {/* Open tasks — full width */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Calendar</h3>
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-400 inline-block" />Journal</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Meetings</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Tasks</span>
-          </div>
+          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Open Tasks</h3>
+          <Link to="/tasks" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
         </div>
-        <CalendarView items={calendarItems} />
+        {openTasks.length === 0 ? (
+          <Card>
+            <p className="text-sm text-gray-400 text-center py-4">No open tasks. Great work!</p>
+          </Card>
+        ) : (
+          <Card padding={false}>
+            <ul className="divide-y divide-gray-100">
+              {openTasks.map(task => {
+                const isToggling = toggling === task.id
+                return (
+                  <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                    <motion.button
+                      onClick={() => toggleDone(task)}
+                      disabled={isToggling}
+                      className="mt-0.5 shrink-0 disabled:opacity-40 transition-colors"
+                      aria-label="Mark complete"
+                      whileTap={{ scale: 0.75 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                    >
+                      {isToggling
+                        ? <RiCheckboxCircleLine size={18} className="text-indigo-400 animate-pulse" />
+                        : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                      }
+                    </motion.button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+                      <div className="flex gap-1.5 mt-1 flex-wrap">
+                        <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
+                        <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
+                        {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
+                      </div>
+                    </div>
+                    <Link to="/tasks" className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
+                      <RiArrowRightSLine size={18} />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </Card>
+        )}
       </section>
 
       <WeeklyRecapModal open={recapOpen} onClose={() => setRecapOpen(false)} />
