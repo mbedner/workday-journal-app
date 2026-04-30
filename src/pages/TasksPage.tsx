@@ -43,6 +43,8 @@ export function TasksPage() {
   const { projects: allProjects, create: createProject } = useProjects()
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('open')
@@ -59,13 +61,23 @@ export function TasksPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
 
-  const fetchTasks = async () => {
-    setLoading(true)
-    const [{ data: taskData }, { data: tpData }] = await Promise.all([
-      supabase.from('tasks').select('*').is('archived_at', null),
+  const PAGE_SIZE = 100
+
+  const fetchTasks = async (replace = true) => {
+    if (replace) setLoading(true)
+    const from = replace ? 0 : tasks.length
+    const [{ data: taskData, count }, { data: tpData }] = await Promise.all([
+      supabase.from('tasks').select('*', { count: 'exact' }).is('archived_at', null)
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1),
       supabase.from('task_projects').select('task_id, projects(name)'),
     ])
-    setTasks(taskData ?? [])
+    if (replace) {
+      setTasks(taskData ?? [])
+      setTotalCount(count ?? 0)
+    } else {
+      setTasks(prev => [...prev, ...(taskData ?? [])])
+    }
     // Build projectMap: taskId → [project names]
     const map: ProjectMap = {}
     for (const row of (tpData ?? []) as any[]) {
@@ -74,10 +86,18 @@ export function TasksPage() {
       map[row.task_id].push(row.projects.name)
     }
     setProjectMap(map)
-    setLoading(false)
+    if (replace) setLoading(false)
+    else setLoadingMore(false)
   }
 
   useEffect(() => { fetchTasks() }, [])
+
+  const loadMoreTasks = () => {
+    setLoadingMore(true)
+    fetchTasks(false)
+  }
+
+  const hasMoreTasks = tasks.length < totalCount
 
   const openAdd = () => {
     setEditTask(null)
@@ -202,13 +222,17 @@ export function TasksPage() {
 
   const openCount = tasks.filter(t => t.status !== 'done').length
   const doneCount = tasks.filter(t => t.status === 'done').length
+  const isPartialLoad = hasMoreTasks && !search && !priorityFilter && !projectFilter
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500">{openCount} open · {doneCount} completed</p>
+          <p className="text-sm text-gray-500">
+            {openCount} open · {doneCount} completed
+            {isPartialLoad && <span className="text-gray-400"> · {tasks.length} of {totalCount} loaded</span>}
+          </p>
         </div>
         <Button onClick={openAdd}>+ Add task</Button>
       </div>
@@ -313,6 +337,16 @@ export function TasksPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Load more */}
+      {!loading && hasMoreTasks && (
+        <div className="flex flex-col items-center gap-1 pt-2">
+          <Button variant="secondary" onClick={loadMoreTasks} loading={loadingMore}>
+            Load more
+          </Button>
+          <p className="text-xs text-gray-400">{tasks.length} of {totalCount} tasks loaded</p>
         </div>
       )}
 

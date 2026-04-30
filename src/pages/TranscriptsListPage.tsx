@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
+import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
 import { Button } from '../components/ui/Button'
@@ -10,10 +11,12 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard } from '../components/ui/Skeleton'
 
+const PAGE_SIZE = 30
+
 function stripMarkup(text: string): string {
   if (!text) return ''
-  let plain = text.replace(/<[^>]+>/g, ' ')
-  plain = plain
+  return text
+    .replace(/<[^>]+>/g, ' ')
     .replace(/#{1,6}\s*/g, '')
     .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
     .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
@@ -24,24 +27,30 @@ function stripMarkup(text: string): string {
     .replace(/\n+/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim()
-  return plain
+}
+
+/** Return the display month label for a transcript, falling back to created_at */
+function monthLabel(t: Transcript): string {
+  const dateStr = t.meeting_date ?? t.created_at?.slice(0, 10)
+  if (!dateStr) return 'Unknown'
+  try { return format(new Date(dateStr + 'T12:00:00'), 'MMMM yyyy') } catch { return 'Unknown' }
 }
 
 export function TranscriptsListPage() {
   const navigate = useNavigate()
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('date-desc')
 
-  // New meeting modal
   const [modalOpen, setModalOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [creating, setCreating] = useState(false)
 
-  useEffect(() => {
-    setLoading(true)
-    let q = supabase.from('transcripts').select('*').is('archived_at', null)
+  const buildQuery = (from: number, to: number) => {
+    let q = supabase.from('transcripts').select('*', { count: 'exact' }).is('archived_at', null)
     if (sort === 'date-desc') {
       q = q.order('meeting_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false })
     } else if (sort === 'date-asc') {
@@ -49,13 +58,31 @@ export function TranscriptsListPage() {
     } else {
       q = q.order('created_at', { ascending: sort === 'oldest' })
     }
-    q.then(({ data }) => {
+    return q.range(from, to)
+  }
+
+  // Reset and re-fetch when sort changes
+  useEffect(() => {
+    setLoading(true)
+    setTranscripts([])
+    buildQuery(0, PAGE_SIZE - 1).then(({ data, count }) => {
       setTranscripts(data ?? [])
+      setTotalCount(count ?? 0)
       setLoading(false)
     })
   }, [sort])
 
-  const filtered = transcripts.filter(t => {
+  const loadMore = async () => {
+    setLoadingMore(true)
+    const { data } = await buildQuery(transcripts.length, transcripts.length + PAGE_SIZE - 1)
+    setTranscripts(prev => [...prev, ...(data ?? [])])
+    setLoadingMore(false)
+  }
+
+  const hasMore = transcripts.length < totalCount
+
+  // Client-side filter across loaded records
+  const filtered = useMemo(() => transcripts.filter(t => {
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -66,12 +93,21 @@ export function TranscriptsListPage() {
       t.action_items?.toLowerCase().includes(q) ||
       t.raw_transcript?.toLowerCase().includes(q)
     )
-  })
+  }), [transcripts, search])
 
-  const openModal = () => {
-    setNewTitle('')
-    setModalOpen(true)
-  }
+  // Group by month when not searching
+  const grouped = useMemo(() => {
+    if (search) return null
+    const groups = new Map<string, Transcript[]>()
+    for (const t of filtered) {
+      const key = monthLabel(t)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(t)
+    }
+    return Array.from(groups.entries())
+  }, [filtered, search])
+
+  const openModal = () => { setNewTitle(''); setModalOpen(true) }
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return
@@ -87,12 +123,39 @@ export function TranscriptsListPage() {
     if (data) navigate(`/transcripts/${data.id}`)
   }
 
+  const TranscriptRow = ({ t }: { t: Transcript }) => (
+    <Link
+      to={`/transcripts/${t.id}`}
+      className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
+        <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
+          {t.meeting_date && <span>{t.meeting_date}</span>}
+          {t.attendees && <span className="truncate">{t.attendees}</span>}
+        </div>
+        {(t.summary || t.raw_transcript) && (
+          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+            {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
+          </p>
+        )}
+      </div>
+      <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+    </Link>
+  )
+
+  const subtitle = loading
+    ? 'Loading…'
+    : search
+      ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}${hasMore ? ` (of ${transcripts.length} loaded)` : ''}`
+      : `${totalCount} meeting${totalCount !== 1 ? 's' : ''} logged`
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Meeting Notes</h1>
-          <p className="text-sm text-gray-500">{transcripts.length} meeting{transcripts.length !== 1 ? 's' : ''} logged</p>
+          <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
         <Button onClick={openModal}>+ New meeting note</Button>
       </div>
@@ -115,33 +178,37 @@ export function TranscriptsListPage() {
           description="Paste meeting notes here so decisions, action items, and follow-ups are easier to find later."
           action={!search ? { label: '+ New meeting note', onClick: openModal } : undefined}
         />
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-          {filtered.map(t => (
-            <Link
-              key={t.id}
-              to={`/transcripts/${t.id}`}
-              className="flex items-center gap-4 px-4 py-3.5 hover:bg-indigo-50/60 transition-colors group"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate">{t.meeting_title}</p>
-                <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
-                  {t.meeting_date && <span>{t.meeting_date}</span>}
-                  {t.attendees && <span className="truncate">{t.attendees}</span>}
-                </div>
-                {(t.summary || t.raw_transcript) && (
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                    {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
-                  </p>
-                )}
+      ) : grouped ? (
+        /* Grouped by month view */
+        <div className="space-y-6">
+          {grouped.map(([label, items]) => (
+            <div key={label}>
+              <div className="flex items-center gap-3 mb-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{label}</p>
+                <div className="flex-1 h-px bg-gray-200" />
               </div>
-              <RiArrowRightSLine size={18} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
-            </Link>
+              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                {items.map(t => <TranscriptRow key={t.id} t={t} />)}
+              </div>
+            </div>
           ))}
+
+          {hasMore && (
+            <div className="flex flex-col items-center gap-1 pt-2">
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>
+                Load more
+              </Button>
+              <p className="text-xs text-gray-400">{transcripts.length} of {totalCount} meetings loaded</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Flat search results */
+        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+          {filtered.map(t => <TranscriptRow key={t.id} t={t} />)}
         </div>
       )}
 
-      {/* New meeting modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New meeting note" size="sm">
         <div className="space-y-4">
           <Input
@@ -154,9 +221,7 @@ export function TranscriptsListPage() {
           />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} loading={creating} disabled={!newTitle.trim()}>
-              Create
-            </Button>
+            <Button onClick={handleCreate} loading={creating} disabled={!newTitle.trim()}>Create</Button>
           </div>
         </div>
       </Modal>
