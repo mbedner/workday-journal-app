@@ -416,7 +416,23 @@ export function TasksPage() {
       )}
 
       {/* Add / Edit modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editTask ? 'Edit task' : 'Add task'} size="lg">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editTask ? 'Edit task' : 'Add task'}
+        size="lg"
+        footer={
+          <>
+            <div />
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button onClick={submit} loading={submitting} disabled={!form.title.trim()}>
+                {editTask ? 'Save changes' : 'Add task'}
+              </Button>
+            </div>
+          </>
+        }
+      >
         <div className="space-y-4">
           <Input label="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Task title" required autoFocus />
           <RichTextEditor label="Notes" value={form.notes} onChange={html => setForm({ ...form, notes: html })} placeholder="Optional notes, links to PBIs, context..." minHeight={100} />
@@ -497,12 +513,6 @@ export function TasksPage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={submit} loading={submitting} disabled={!form.title.trim()}>
-              {editTask ? 'Save changes' : 'Add task'}
-            </Button>
-          </div>
         </div>
       </Modal>
 
