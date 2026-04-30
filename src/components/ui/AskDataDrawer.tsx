@@ -452,8 +452,11 @@ export function AskDataDrawer({ open, onClose }: Props) {
                                 <div className={`shrink-0 mt-0.5 w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center ${msg.isStreaming ? 'animate-pulse' : ''}`}>
                                   <RiSparklingLine size={12} className="text-indigo-600" />
                                 </div>
-                                <div className="flex-1 min-w-0 [&_.prose]:!text-sm [&_.prose_p]:!my-1 [&_.prose_ul]:!my-1 [&_.prose_li]:!my-0.5 [&_.prose_h1]:!text-sm [&_.prose_h2]:!text-sm [&_.prose_h3]:!text-xs">
-                                  <MarkdownContent content={displayed} />
+                                <div className="flex-1 min-w-0">
+                                  <MarkdownContent
+                                    content={displayed}
+                                    className="[&_p]:my-1 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-xs text-sm"
+                                  />
                                   {msg.isStreaming && (
                                     <span className="inline-block w-0.5 h-3.5 bg-gray-500 align-middle ml-0.5 animate-pulse" />
                                   )}
