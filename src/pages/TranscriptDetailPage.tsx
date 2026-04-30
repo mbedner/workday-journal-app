@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -22,6 +22,7 @@ import { useToast } from '../contexts/ToastContext'
 export function TranscriptDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
@@ -75,9 +76,8 @@ export function TranscriptDetailPage() {
       }
       setSelectedProjects((tp ?? []).map((r: any) => r.projects?.name).filter(Boolean))
       setSelectedTags((tt ?? []).map((r: any) => r.tags?.name).filter(Boolean))
-      // New blank notes open in edit mode; existing notes open in view mode
-      const isNew = t.meeting_title === 'New Meeting' && !t.raw_transcript && !t.summary
-      setIsEditing(isNew)
+      // Open in edit mode if navigated here right after creation (?edit=true)
+      setIsEditing(searchParams.get('edit') === 'true')
       setLoading(false)
     })
   }, [id, navigate])

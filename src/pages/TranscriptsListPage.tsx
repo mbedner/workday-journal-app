@@ -150,7 +150,7 @@ export function TranscriptsListPage() {
       .single()
     setCreating(false)
     setModalOpen(false)
-    if (data) navigate(`/transcripts/${data.id}`)
+    if (data) navigate(`/transcripts/${data.id}?edit=true`)
   }
 
   const TranscriptRow = ({ t }: { t: Transcript }) => {
