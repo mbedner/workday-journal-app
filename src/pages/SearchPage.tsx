@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
 import Fuse from 'fuse.js'
@@ -9,12 +9,20 @@ import { Select } from '../components/ui/Select'
 import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
+import { ProjectTag } from '../components/ui/ProjectTag'
+import { useProjects } from '../hooks/useProjects'
 
 const typeVariants: Record<string, 'indigo' | 'green' | 'blue'> = {
   journal: 'indigo', task: 'green', transcript: 'blue',
 }
 
 export function SearchPage() {
+  const { projects: allProjects } = useProjects()
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
+
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -156,7 +164,7 @@ export function SearchPage() {
                     <p className="text-xs text-gray-500 line-clamp-2">{r.body}</p>
                     {(r.projects.length > 0 || r.tags.length > 0) && (
                       <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                        {r.projects.map(p => <Badge key={p} variant="gray">{p}</Badge>)}
+                        {r.projects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
                         {r.tags.map(t => <Badge key={t} variant="gray">{t}</Badge>)}
                       </div>
                     )}

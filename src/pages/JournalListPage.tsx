@@ -14,6 +14,7 @@ import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
+import { ProjectTag } from '../components/ui/ProjectTag'
 
 const PAGE_SIZE = 60
 
@@ -143,6 +144,11 @@ export function JournalListPage() {
     color: 'indigo',
   })), [filtered])
 
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
+
   const isFiltering = !!(search || ratingFilter || projectFilter)
 
   const subtitle = loading
@@ -169,7 +175,7 @@ export function JournalListPage() {
               <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">Today</span>
             )}
             {eProjects.map(p => (
-              <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+              <ProjectTag key={p} name={p} projectId={nameToId[p]} />
             ))}
           </div>
           {entry.focus && (
@@ -215,7 +221,7 @@ export function JournalListPage() {
         {eProjects.length > 0 && (
           <div className="flex gap-1 flex-wrap mt-auto pt-1">
             {eProjects.map(p => (
-              <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+              <ProjectTag key={p} name={p} projectId={nameToId[p]} />
             ))}
           </div>
         )}

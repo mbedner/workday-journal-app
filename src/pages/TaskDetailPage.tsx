@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   RiArrowLeftLine, RiPencilLine, RiCheckboxCircleLine,
@@ -16,6 +16,7 @@ import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { TagInput } from '../components/ui/TagInput'
 import { Sk } from '../components/ui/Skeleton'
+import { ProjectTag } from '../components/ui/ProjectTag'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { motion } from 'framer-motion'
@@ -36,6 +37,10 @@ export function TaskDetailPage() {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
 
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -432,7 +437,7 @@ export function TaskDetailPage() {
         <div className="pt-4 border-t border-gray-100">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Projects</p>
           <div className="flex gap-1.5 flex-wrap">
-            {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+            {selectedProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
           </div>
         </div>
       )}

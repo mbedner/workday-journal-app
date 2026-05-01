@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
@@ -14,6 +14,7 @@ import { AiCleanupModal } from '../components/ui/AiCleanupModal'
 import { ExtractActionsModal, TaskPayload } from '../components/ui/ExtractActionsModal'
 import { summarizeMeeting } from '../lib/ai'
 import { Sk } from '../components/ui/Skeleton'
+import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { useAttendees } from '../hooks/useAttendees'
@@ -25,6 +26,10 @@ export function TranscriptDetailPage() {
   const [searchParams] = useSearchParams()
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
   const { names: knownAttendees, syncNames: syncAttendees } = useAttendees()
 
@@ -267,7 +272,7 @@ export function TranscriptDetailPage() {
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Projects</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+                  {selectedProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
                 </div>
               </div>
             )}

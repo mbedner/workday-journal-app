@@ -12,6 +12,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
+import { ProjectTag } from '../components/ui/ProjectTag'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -61,6 +62,11 @@ export function TranscriptsListPage() {
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('transcripts-view', v) }
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
+
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
 
   const [modalOpen, setModalOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -185,7 +191,7 @@ export function TranscriptsListPage() {
             {t.meeting_date && <span>{t.meeting_date}</span>}
             {t.attendees && <span className="truncate">{t.attendees}</span>}
             {tProjects.map(p => (
-              <span key={p} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+              <ProjectTag key={p} name={p} projectId={nameToId[p]} />
             ))}
           </div>
           {(t.summary || t.raw_transcript) && (

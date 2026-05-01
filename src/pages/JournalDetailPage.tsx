@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
@@ -12,6 +12,7 @@ import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { AiCleanupModal } from '../components/ui/AiCleanupModal'
 import { Sk } from '../components/ui/Skeleton'
+import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { Modal } from '../components/ui/Modal'
@@ -24,6 +25,10 @@ export function JournalDetailPage() {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
 
   const [_entry, setEntry] = useState<JournalEntry | null>(null)
@@ -249,7 +254,7 @@ export function JournalDetailPage() {
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Projects</p>
                 <div className="flex gap-1.5 flex-wrap">
-                  {selectedProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+                  {selectedProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
                 </div>
               </div>
             )}

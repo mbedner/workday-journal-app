@@ -17,6 +17,7 @@ import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
+import { ProjectTag } from '../components/ui/ProjectTag'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -71,6 +72,11 @@ export function TasksPage() {
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('tasks-view', v) }
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
+
+  const nameToId = useMemo(
+    () => Object.fromEntries(allProjects.map(p => [p.name, p.id])),
+    [allProjects]
+  )
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -484,7 +490,7 @@ export function TasksPage() {
                     {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
                     {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
                     <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                    {taskProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+                    {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
                     {task.due_date && (
                       <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
                         {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
@@ -543,7 +549,7 @@ export function TasksPage() {
                       {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
                       {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
                       <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                      {taskProjects.map(p => <Badge key={p} variant="indigo">{p}</Badge>)}
+                      {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
                       {task.due_date && (
                         <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
                           {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
