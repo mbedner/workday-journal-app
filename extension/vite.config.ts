@@ -33,6 +33,7 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'popup.html'),
         background: resolve(__dirname, 'src/background.ts'),
+        content: resolve(__dirname, 'src/content.ts'),
       },
       output: {
         // Flat output so manifest.json paths are predictable

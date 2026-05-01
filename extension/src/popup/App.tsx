@@ -36,28 +36,22 @@ export function App() {
       const tab = tabs[0]
       if (!tab) return
       setPageCtx({ url: tab.url ?? '', title: tab.title ?? '' })
+    })
 
-      // Read selected text directly from the active tab
-      if (tab.id != null) {
-        chrome.scripting.executeScript(
-          { target: { tabId: tab.id }, func: () => window.getSelection()?.toString() ?? '' },
-          (results) => {
-            const sel = results?.[0]?.result?.trim() ?? ''
-            if (sel) {
-              setSelectedText(sel)
-            } else {
-              // Fall back to context-menu pending capture
-              chrome.storage.local.get(['pendingCapture'], (r) => {
-                const p = r.pendingCapture
-                if (p && Date.now() - p.timestamp < 30_000) {
-                  setSelectedText(p.selectedText ?? '')
-                  chrome.storage.local.remove('pendingCapture')
-                }
-              })
-            }
-          }
-        )
-      }
+    // Content script stores the selection before focus shifts to the popup.
+    // Also falls back to any pending context-menu capture.
+    chrome.storage.local.get(['pageSelection', 'pendingCapture'], (result) => {
+      const sel = result.pageSelection?.trim() ?? ''
+      const pending = result.pendingCapture
+      const pendingText = (pending && Date.now() - pending.timestamp < 30_000)
+        ? pending.selectedText?.trim() ?? ''
+        : ''
+
+      const text = sel || pendingText
+      if (text) setSelectedText(text)
+
+      // Clear both so stale values don't re-appear next time
+      chrome.storage.local.remove(['pageSelection', 'pendingCapture'])
     })
   }, [])
 
