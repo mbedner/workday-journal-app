@@ -13,6 +13,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
+import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 
 const PAGE_SIZE = 60
 
@@ -50,6 +51,7 @@ export function JournalListPage() {
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('journal-view') as ViewMode) ?? 'list'
   )
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const today = format(new Date(), 'yyyy-MM-dd')
 
@@ -236,7 +238,22 @@ export function JournalListPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
+      {/* Mobile: search + filter trigger */}
+      <div className="flex gap-2 sm:hidden">
+        <Input
+          placeholder="Search journals..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="flex-1"
+        />
+        <FilterTrigger
+          onClick={() => setFilterSheetOpen(true)}
+          activeCount={[projectFilter, ratingFilter, sort !== 'newest' ? sort : ''].filter(Boolean).length}
+        />
+      </div>
+
+      {/* Desktop: full inline filter bar */}
+      <div className="hidden sm:flex gap-3 flex-wrap">
         <Input
           placeholder="Search journals..."
           value={search}
@@ -260,6 +277,36 @@ export function JournalListPage() {
           </Select>
         )}
       </div>
+
+      {/* Mobile filter sheet */}
+      <FilterSheet
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        activeCount={[projectFilter, ratingFilter, sort !== 'newest' ? sort : ''].filter(Boolean).length}
+      >
+        {allProjects.length > 0 && (
+          <FilterRow label="Project">
+            <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-full">
+              <option value="">All projects</option>
+              {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </Select>
+          </FilterRow>
+        )}
+        <FilterRow label="Rating">
+          <Select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)} className="w-full">
+            <option value="">All ratings</option>
+            {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} stars</option>)}
+          </Select>
+        </FilterRow>
+        {view !== 'calendar' && (
+          <FilterRow label="Sort">
+            <Select value={sort} onChange={e => setSort(e.target.value as typeof sort)} className="w-full">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </Select>
+          </FilterRow>
+        )}
+      </FilterSheet>
 
       {loading ? (
         view === 'calendar' ? <SkCalendar /> :

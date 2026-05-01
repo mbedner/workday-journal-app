@@ -16,6 +16,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
+import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -69,6 +70,7 @@ export function TasksPage() {
     () => (localStorage.getItem('tasks-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('tasks-view', v) }
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
@@ -326,7 +328,22 @@ export function TasksPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
+      {/* Mobile: search + filter trigger */}
+      <div className="flex gap-2 sm:hidden">
+        <Input placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1" />
+        <FilterTrigger
+          onClick={() => setFilterSheetOpen(true)}
+          activeCount={[
+            statusFilter && statusFilter !== 'open' ? statusFilter : '',
+            priorityFilter,
+            projectFilter,
+            sort !== 'newest' ? sort : '',
+          ].filter(Boolean).length}
+        />
+      </div>
+
+      {/* Desktop: full inline filter bar */}
+      <div className="hidden sm:flex gap-3 flex-wrap">
         <Input placeholder="Search tasks..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[160px]" />
         <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-36">
           <option value="open">Open tasks</option>
@@ -355,6 +372,53 @@ export function TasksPage() {
           <option value="due_date">Due date</option>
         </Select>
       </div>
+
+      {/* Mobile filter sheet */}
+      <FilterSheet
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        activeCount={[
+          statusFilter && statusFilter !== 'open' ? statusFilter : '',
+          priorityFilter,
+          projectFilter,
+          sort !== 'newest' ? sort : '',
+        ].filter(Boolean).length}
+      >
+        <FilterRow label="Status">
+          <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full">
+            <option value="open">Open tasks</option>
+            <option value="">All tasks</option>
+            <option value="todo">To do</option>
+            <option value="in_progress">In progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="done">Completed</option>
+          </Select>
+        </FilterRow>
+        <FilterRow label="Priority">
+          <Select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-full">
+            <option value="">All priority</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </Select>
+        </FilterRow>
+        {allProjects.length > 0 && (
+          <FilterRow label="Project">
+            <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-full">
+              <option value="">All projects</option>
+              {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </Select>
+          </FilterRow>
+        )}
+        <FilterRow label="Sort">
+          <Select value={sort} onChange={e => setSort(e.target.value)} className="w-full">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="priority">By priority</option>
+            <option value="due_date">By due date</option>
+          </Select>
+        </FilterRow>
+      </FilterSheet>
 
       {loading ? (
         view === 'calendar' ? <SkCalendar /> :

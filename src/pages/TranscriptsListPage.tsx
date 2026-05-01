@@ -11,6 +11,7 @@ import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
+import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
@@ -59,6 +60,7 @@ export function TranscriptsListPage() {
     () => (localStorage.getItem('transcripts-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('transcripts-view', v) }
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -216,7 +218,17 @@ export function TranscriptsListPage() {
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
+      {/* Mobile: search + filter trigger */}
+      <div className="flex gap-2 sm:hidden">
+        <Input placeholder="Search meeting notes..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1" />
+        <FilterTrigger
+          onClick={() => setFilterSheetOpen(true)}
+          activeCount={[projectFilter, sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
+        />
+      </div>
+
+      {/* Desktop: full inline filter bar */}
+      <div className="hidden sm:flex gap-3 flex-wrap">
         <Input placeholder="Search meeting notes..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 min-w-[200px]" />
         {allProjects.length > 0 && (
           <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-44">
@@ -231,6 +243,30 @@ export function TranscriptsListPage() {
           <option value="date-asc">Meeting date: oldest</option>
         </Select>
       </div>
+
+      {/* Mobile filter sheet */}
+      <FilterSheet
+        open={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        activeCount={[projectFilter, sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
+      >
+        {allProjects.length > 0 && (
+          <FilterRow label="Project">
+            <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-full">
+              <option value="">All projects</option>
+              {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </Select>
+          </FilterRow>
+        )}
+        <FilterRow label="Sort">
+          <Select value={sort} onChange={e => setSort(e.target.value)} className="w-full">
+            <option value="newest">Created: newest first</option>
+            <option value="oldest">Created: oldest first</option>
+            <option value="date-desc">Meeting date: newest</option>
+            <option value="date-asc">Meeting date: oldest</option>
+          </Select>
+        </FilterRow>
+      </FilterSheet>
 
       {loading ? (
         view === 'calendar' ? <SkCalendar /> :
