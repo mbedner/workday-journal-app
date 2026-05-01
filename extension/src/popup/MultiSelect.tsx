@@ -43,7 +43,7 @@ export function MultiSelect({ options, selected, onChange, placeholder = 'Select
     <div ref={containerRef} className="relative">
       {/* Selected chips + input */}
       <div
-        className="min-h-[36px] flex flex-wrap gap-1 px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-transparent cursor-text transition"
+        className="min-h-[36px] flex flex-wrap gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-transparent cursor-text transition"
         onClick={() => setOpen(true)}
       >
         {selected.map(v => (
@@ -71,7 +71,7 @@ export function MultiSelect({ options, selected, onChange, placeholder = 'Select
 
       {/* Dropdown */}
       {open && (filtered.length > 0 || (allowCustom && query.trim() && !options.includes(query.trim()))) && (
-        <div className="dropdown-list absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg max-h-36 overflow-y-auto">
+        <div className="dropdown-list absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg shadow-lg max-h-36 overflow-y-auto">
           {filtered.map(o => (
             <button
               key={o}

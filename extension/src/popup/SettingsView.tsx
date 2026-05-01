@@ -36,7 +36,7 @@ export function SettingsView({ settings, onSave, onCancel }: Props) {
       </div>
 
       <div className="px-4 pt-4 pb-5 space-y-4">
-        <div className="p-3 bg-indigo-50 rounded-xl text-xs text-indigo-700 leading-relaxed">
+        <div className="p-3 bg-indigo-50 rounded-lg text-xs text-indigo-700 leading-relaxed">
           Generate an API token in your Workday Journal app under <strong>Settings → Extension API Token</strong>, then paste it here.
         </div>
 
@@ -48,7 +48,7 @@ export function SettingsView({ settings, onSave, onCancel }: Props) {
             onChange={e => setAppUrl(e.target.value)}
             placeholder="https://your-app.vercel.app"
             type="url"
-            className="w-full text-sm px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
           <p className="text-xs text-gray-400 mt-1">The URL where your Workday Journal is deployed.</p>
         </div>
@@ -62,7 +62,7 @@ export function SettingsView({ settings, onSave, onCancel }: Props) {
               onChange={e => setToken(e.target.value)}
               placeholder="wj_..."
               type={showToken ? 'text' : 'password'}
-              className="w-full text-sm px-3 py-2 pr-10 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono"
+              className="w-full text-sm px-3 py-2 pr-10 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono"
             />
             <button
               type="button"
@@ -87,7 +87,7 @@ export function SettingsView({ settings, onSave, onCancel }: Props) {
         <button
           onClick={handleSave}
           disabled={!token.trim() || !appUrl.trim()}
-          className="w-full py-2.5 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="w-full py-2.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           Save Settings
         </button>

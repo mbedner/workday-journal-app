@@ -69,8 +69,10 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
       },
     }))
 
-    const field = 'w-full text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition placeholder:text-gray-300'
+    const field = 'w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition placeholder:text-gray-300'
     const label = 'block text-xs font-medium text-gray-500 mb-1'
+    const selectWrap = 'relative'
+    const selectField = 'w-full text-sm pl-3 pr-8 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition appearance-none'
 
     return (
       <div className="space-y-3 py-1">
@@ -87,20 +89,26 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
         <div className="flex gap-2">
           <div className="flex-1">
             <label className={label}>Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)} className={field}>
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="blocked">Blocked</option>
-              <option value="done">Done</option>
-            </select>
+            <div className={selectWrap}>
+              <select value={status} onChange={e => setStatus(e.target.value)} className={selectField}>
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+              <Chevron />
+            </div>
           </div>
           <div className="flex-1">
             <label className={label}>Priority</label>
-            <select value={priority} onChange={e => setPriority(e.target.value)} className={field}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
+            <div className={selectWrap}>
+              <select value={priority} onChange={e => setPriority(e.target.value)} className={selectField}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+              <Chevron />
+            </div>
           </div>
         </div>
 
@@ -139,3 +147,13 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
 )
 
 TaskForm.displayName = 'TaskForm'
+
+function Chevron() {
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
+      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+  )
+}

@@ -125,13 +125,13 @@ export function App() {
         <div className="flex gap-2 w-full">
           <button
             onClick={openInApp}
-            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition"
+            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition"
           >
             Open in app ↗
           </button>
           <button
             onClick={() => { setView('capture'); setSuccessId(''); setSuccessType('') }}
-            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition"
+            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
           >
             Capture another
           </button>
@@ -171,7 +171,7 @@ export function App() {
           <button
             key={t}
             onClick={() => { setTab(t); setError('') }}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition ${
+            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
               tab === t ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
@@ -182,7 +182,7 @@ export function App() {
 
       {/* Setup warning */}
       {!isConfigured && (
-        <div className="shrink-0 mx-4 mb-2 px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+        <div className="shrink-0 mx-4 mb-2 px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-lg">
           <p className="text-xs font-medium text-amber-700">Setup required</p>
           <p className="text-xs text-amber-600 mt-0.5">Click ⚙ to add your API token and app URL.</p>
         </div>
@@ -219,12 +219,12 @@ export function App() {
       {/* Fixed footer */}
       <div className="shrink-0 px-4 pt-2 pb-4 border-t border-gray-100 bg-white space-y-2">
         {error && (
-          <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{error}</p>
+          <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
         )}
         <button
           onClick={handleSave}
           disabled={saving || !isConfigured}
-          className="w-full py-2.5 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+          className="w-full py-2.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
         >
           {saving ? 'Saving…' : tab === 'task' ? 'Save Task' : 'Save Meeting Note'}
         </button>

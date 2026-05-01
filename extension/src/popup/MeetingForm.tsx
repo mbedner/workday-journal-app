@@ -63,7 +63,7 @@ export const MeetingForm = forwardRef<MeetingFormHandle, Props>(
       },
     }))
 
-    const field = 'w-full text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition placeholder:text-gray-300'
+    const field = 'w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition placeholder:text-gray-300'
     const label = 'block text-xs font-medium text-gray-500 mb-1'
 
     return (
