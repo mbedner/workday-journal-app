@@ -31,9 +31,8 @@ export const MeetingForm = forwardRef<MeetingFormHandle, Props>(
     const [tags, setTags] = useState<string[]>([])
     const [notes, setNotes] = useState('')
 
-    useEffect(() => {
-      setTitle(pageCtx.title || `Meeting notes — ${todayStr()}`)
-    }, [pageCtx.title])
+    // Leave title blank — don't assume the page title is a useful meeting title
+    useEffect(() => {}, [])
 
     useImperativeHandle(ref, () => ({
       submit: async () => {

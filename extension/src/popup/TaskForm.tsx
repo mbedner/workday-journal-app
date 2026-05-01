@@ -29,15 +29,13 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
     const [projects, setProjects] = useState<string[]>([])
     const [subtasks, setSubtasks] = useState('')
 
-    // Pre-fill: selected text wins over page title
+    // Only pre-fill if the user has text selected — never auto-fill from page title
     useEffect(() => {
       if (selectedText) {
         setTitle(selectedText.slice(0, 120))
         if (selectedText.length > 120) setNotes(selectedText)
-      } else if (pageCtx.title) {
-        setTitle(pageCtx.title.slice(0, 120))
       }
-    }, [selectedText, pageCtx.title])
+    }, [selectedText])
 
     useImperativeHandle(ref, () => ({
       submit: async () => {
