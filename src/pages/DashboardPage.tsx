@@ -306,7 +306,7 @@ export function DashboardPage() {
                 {openTasks.map(task => {
                   const isToggling = toggling === task.id
                   return (
-                    <li key={task.id} className="px-4 py-3 flex items-start gap-3 hover:bg-indigo-50/60 transition-colors">
+                    <li key={task.id} className="flex items-start gap-3 px-4 py-3 hover:bg-indigo-50/60 transition-colors">
                       <motion.button
                         onClick={() => toggleDone(task)}
                         disabled={isToggling}
@@ -320,14 +320,14 @@ export function DashboardPage() {
                           : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
                         }
                       </motion.button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
-                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                      <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0 group/row">
+                        <p className="text-sm font-medium text-gray-900 truncate group-hover/row:text-indigo-700 transition-colors">{task.title}</p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap items-center">
                           <Badge variant={statusVariant(task.status)}>{task.status.replace('_', ' ')}</Badge>
                           <Badge variant={priorityVariant(task.priority)}>{task.priority}</Badge>
                           {task.due_date && <span className="text-xs text-gray-400">Due {task.due_date}</span>}
                         </div>
-                      </div>
+                      </Link>
                       <Link to={`/tasks/${task.id}`} className="text-gray-300 hover:text-indigo-400 transition shrink-0 mt-0.5">
                         <RiArrowRightSLine size={18} />
                       </Link>
