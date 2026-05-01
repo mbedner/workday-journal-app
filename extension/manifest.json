@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "contextMenus",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "action": {
     "default_popup": "popup.html",

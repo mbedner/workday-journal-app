@@ -61,12 +61,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!title?.trim()) return res.status(400).json({ error: '"title" is required' })
 
+    // Embed the source URL in the notes body so it's visible in the app
+    const sourceBlurb = source_url
+      ? `\n\nSource: [${source_title || source_url}](${source_url})`
+      : ''
+    const notesWithSource = ((notes?.trim() ?? '') + sourceBlurb).trim() || null
+
     const { data: task, error } = await supabase
       .from('tasks')
       .insert({
         user_id: userId,
         title: title.trim(),
-        notes: notes?.trim() || null,
+        notes: notesWithSource,
         status,
         priority,
         due_date: due_date || null,
@@ -128,6 +134,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!meeting_title?.trim()) return res.status(400).json({ error: '"meeting_title" is required' })
 
+    // Embed the source URL in raw_transcript so it's visible in the app
+    const sourceBlurb = source_url
+      ? `\n\n---\nSource: [${source_title || source_url}](${source_url})`
+      : ''
+    const rawWithSource = ((notes?.trim() ?? '') + sourceBlurb).trim() || null
+
     const { data: transcript, error } = await supabase
       .from('transcripts')
       .insert({
@@ -135,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         meeting_title: meeting_title.trim(),
         meeting_date: meeting_date || new Date().toISOString().slice(0, 10),
         attendees: Array.isArray(attendees) ? attendees.join(', ') : (attendees || null),
-        raw_transcript: notes?.trim() || null,
+        raw_transcript: rawWithSource,
         source_url: source_url || null,
         source_title: source_title || null,
       })

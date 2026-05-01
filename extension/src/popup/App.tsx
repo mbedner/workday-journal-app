@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { TaskForm } from './TaskForm'
-import { MeetingForm } from './MeetingForm'
+import { useEffect, useRef, useState } from 'react'
+import { TaskForm, type TaskFormHandle } from './TaskForm'
+import { MeetingForm, type MeetingFormHandle } from './MeetingForm'
 import { SettingsView } from './SettingsView'
 import type { PageContext, Settings, Metadata } from './types'
 
@@ -14,41 +14,53 @@ export function App() {
   const [settings, setSettings] = useState<Settings>({ token: '', appUrl: '' })
   const [metadata, setMetadata] = useState<Metadata>({ projects: [], tags: [], attendees: [] })
   const [metaLoading, setMetaLoading] = useState(false)
-  const [successType, setSuccessType] = useState<string>('')
-  const [successId, setSuccessId] = useState<string>('')
-  const [pendingText, setPendingText] = useState<string>('')
+  const [successType, setSuccessType] = useState('')
+  const [successId, setSuccessId] = useState('')
+  const [selectedText, setSelectedText] = useState('')
 
-  // Load saved settings + page context on mount
+  // Shared save state lifted up for the fixed footer
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const taskRef = useRef<TaskFormHandle>(null)
+  const meetingRef = useRef<MeetingFormHandle>(null)
+
   useEffect(() => {
-    // Connect so background can detect popup open (to clear badge)
     chrome.runtime.connect({ name: 'popup' })
 
     chrome.storage.sync.get(['token', 'appUrl'], (result) => {
-      setSettings({
-        token: result.token ?? '',
-        appUrl: result.appUrl ?? '',
-      })
+      setSettings({ token: result.token ?? '', appUrl: result.appUrl ?? '' })
     })
 
-    // Get current tab URL + title
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0]
-      if (tab) {
-        setPageCtx({ url: tab.url ?? '', title: tab.title ?? '' })
-      }
-    })
+      if (!tab) return
+      setPageCtx({ url: tab.url ?? '', title: tab.title ?? '' })
 
-    // Check for pending capture from context menu
-    chrome.storage.local.get(['pendingCapture'], (result) => {
-      const pending = result.pendingCapture
-      if (pending && Date.now() - pending.timestamp < 30_000) {
-        setPendingText(pending.selectedText ?? '')
-        chrome.storage.local.remove('pendingCapture')
+      // Read selected text directly from the active tab
+      if (tab.id != null) {
+        chrome.scripting.executeScript(
+          { target: { tabId: tab.id }, func: () => window.getSelection()?.toString() ?? '' },
+          (results) => {
+            const sel = results?.[0]?.result?.trim() ?? ''
+            if (sel) {
+              setSelectedText(sel)
+            } else {
+              // Fall back to context-menu pending capture
+              chrome.storage.local.get(['pendingCapture'], (r) => {
+                const p = r.pendingCapture
+                if (p && Date.now() - p.timestamp < 30_000) {
+                  setSelectedText(p.selectedText ?? '')
+                  chrome.storage.local.remove('pendingCapture')
+                }
+              })
+            }
+          }
+        )
       }
     })
   }, [])
 
-  // Load metadata once we have a token + appUrl
   useEffect(() => {
     if (!settings.token || !settings.appUrl) return
     setMetaLoading(true)
@@ -58,11 +70,7 @@ export function App() {
       .then(r => r.json())
       .then(d => {
         if (d.projects || d.tags || d.attendees) {
-          setMetadata({
-            projects: d.projects ?? [],
-            tags: d.tags ?? [],
-            attendees: d.attendees ?? [],
-          })
+          setMetadata({ projects: d.projects ?? [], tags: d.tags ?? [], attendees: d.attendees ?? [] })
         }
       })
       .catch(() => {})
@@ -81,29 +89,30 @@ export function App() {
     setView('success')
   }
 
+  const handleSave = async () => {
+    setError('')
+    if (tab === 'task') await taskRef.current?.submit()
+    else await meetingRef.current?.submit()
+  }
+
   const openInApp = () => {
     const base = settings.appUrl.replace(/\/$/, '')
-    const path = successType === 'task' ? '/tasks' : `/transcripts/${successId}`
-    chrome.tabs.create({ url: `${base}${path}` })
+    chrome.tabs.create({ url: `${base}${successType === 'task' ? '/tasks' : `/transcripts/${successId}`}` })
   }
 
   const isConfigured = settings.token && settings.appUrl
 
   if (view === 'settings') {
     return (
-      <SettingsView
-        settings={settings}
-        onSave={saveSettings}
-        onCancel={() => setView('capture')}
-      />
+      <SettingsView settings={settings} onSave={saveSettings} onCancel={() => setView('capture')} />
     )
   }
 
   if (view === 'success') {
     return (
-      <div className="p-5 flex flex-col items-center gap-4 text-center">
-        <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-          <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-center">
+          <svg className="w-7 h-7 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
@@ -111,18 +120,18 @@ export function App() {
           <p className="text-sm font-semibold text-gray-900">
             {successType === 'task' ? 'Task saved!' : 'Meeting note saved!'}
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">Added to your Workday Journal</p>
+          <p className="text-xs text-gray-400 mt-1">Added to your Workday Journal</p>
         </div>
         <div className="flex gap-2 w-full">
           <button
             onClick={openInApp}
-            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition"
+            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition"
           >
             Open in app ↗
           </button>
           <button
             onClick={() => { setView('capture'); setSuccessId(''); setSuccessType('') }}
-            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+            className="flex-1 px-3 py-2.5 text-xs font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition"
           >
             Capture another
           </button>
@@ -132,12 +141,12 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div className="h-full flex flex-col">
+      {/* Fixed header */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded bg-indigo-600 flex items-center justify-center">
-            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+          <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center shadow-sm">
+            <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
               <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
             </svg>
@@ -146,7 +155,7 @@ export function App() {
         </div>
         <button
           onClick={() => setView('settings')}
-          className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
           title="Settings"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -156,59 +165,69 @@ export function App() {
         </button>
       </div>
 
+      {/* Tab switcher */}
+      <div className="shrink-0 flex px-4 pt-3 pb-2 gap-1">
+        {(['task', 'meeting'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => { setTab(t); setError('') }}
+            className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition ${
+              tab === t ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {t === 'task' ? 'Task' : 'Meeting Note'}
+          </button>
+        ))}
+      </div>
+
+      {/* Setup warning */}
       {!isConfigured && (
-        <div className="mx-4 mt-3 mb-1 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-xs text-amber-700 font-medium">Setup required</p>
-          <p className="text-xs text-amber-600 mt-0.5">
-            Click the gear icon to add your API token and app URL.
-          </p>
+        <div className="shrink-0 mx-4 mb-2 px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+          <p className="text-xs font-medium text-amber-700">Setup required</p>
+          <p className="text-xs text-amber-600 mt-0.5">Click ⚙ to add your API token and app URL.</p>
         </div>
       )}
 
-      {/* Tab switcher */}
-      <div className="flex px-4 pt-3 gap-1">
-        <button
-          onClick={() => setTab('task')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
-            tab === 'task'
-              ? 'bg-indigo-100 text-indigo-700'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Task
-        </button>
-        <button
-          onClick={() => setTab('meeting')}
-          className={`flex-1 py-1.5 text-xs font-medium rounded-md transition ${
-            tab === 'meeting'
-              ? 'bg-indigo-100 text-indigo-700'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Meeting Note
-        </button>
-      </div>
-
-      {/* Form area */}
-      <div className="px-4 pt-3 pb-4">
+      {/* Scrollable form body */}
+      <div className="form-scroll flex-1 overflow-y-auto px-4 pb-2">
         {tab === 'task' ? (
           <TaskForm
+            ref={taskRef}
             pageCtx={pageCtx}
             settings={settings}
             metadata={metadata}
             metaLoading={metaLoading}
-            pendingText={pendingText}
+            selectedText={selectedText}
+            onSaving={setSaving}
+            onError={setError}
             onSuccess={handleSuccess}
           />
         ) : (
           <MeetingForm
+            ref={meetingRef}
             pageCtx={pageCtx}
             settings={settings}
             metadata={metadata}
             metaLoading={metaLoading}
+            onSaving={setSaving}
+            onError={setError}
             onSuccess={handleSuccess}
           />
         )}
+      </div>
+
+      {/* Fixed footer */}
+      <div className="shrink-0 px-4 pt-2 pb-4 border-t border-gray-100 bg-white space-y-2">
+        {error && (
+          <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{error}</p>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={saving || !isConfigured}
+          className="w-full py-2.5 text-sm font-medium rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+        >
+          {saving ? 'Saving…' : tab === 'task' ? 'Save Task' : 'Save Meeting Note'}
+        </button>
       </div>
     </div>
   )

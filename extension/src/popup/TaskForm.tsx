@@ -1,177 +1,141 @@
-import { useState, useEffect } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import type { PageContext, Settings, Metadata } from './types'
 import { SourcePreview } from './SourcePreview'
 import { MultiSelect } from './MultiSelect'
 import { capture } from './api'
+
+export interface TaskFormHandle {
+  submit: () => Promise<void>
+}
 
 interface Props {
   pageCtx: PageContext
   settings: Settings
   metadata: Metadata
   metaLoading: boolean
-  pendingText: string
+  selectedText: string
+  onSaving: (v: boolean) => void
+  onError: (msg: string) => void
   onSuccess: (type: string, id: string) => void
 }
 
-export function TaskForm({ pageCtx, settings, metadata, metaLoading, pendingText, onSuccess }: Props) {
-  const [title, setTitle] = useState('')
-  const [notes, setNotes] = useState('')
-  const [status, setStatus] = useState('todo')
-  const [priority, setPriority] = useState('medium')
-  const [dueDate, setDueDate] = useState('')
-  const [projects, setProjects] = useState<string[]>([])
-  const [subtasks, setSubtasks] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+export const TaskForm = forwardRef<TaskFormHandle, Props>(
+  ({ pageCtx, settings, metadata, metaLoading, selectedText, onSaving, onError, onSuccess }, ref) => {
+    const [title, setTitle] = useState('')
+    const [notes, setNotes] = useState('')
+    const [status, setStatus] = useState('todo')
+    const [priority, setPriority] = useState('medium')
+    const [dueDate, setDueDate] = useState('')
+    const [projects, setProjects] = useState<string[]>([])
+    const [subtasks, setSubtasks] = useState('')
 
-  // Pre-fill from selected text (context menu) or page title
-  useEffect(() => {
-    if (pendingText) {
-      setTitle(pendingText.slice(0, 120))
-      setNotes(pendingText.length > 120 ? pendingText : '')
-    } else {
-      setTitle(pageCtx.title.slice(0, 120))
-    }
-  }, [pendingText, pageCtx.title])
+    // Pre-fill: selected text wins over page title
+    useEffect(() => {
+      if (selectedText) {
+        setTitle(selectedText.slice(0, 120))
+        if (selectedText.length > 120) setNotes(selectedText)
+      } else if (pageCtx.title) {
+        setTitle(pageCtx.title.slice(0, 120))
+      }
+    }, [selectedText, pageCtx.title])
 
-  const handleSubmit = async () => {
-    if (!title.trim()) { setError('Title is required'); return }
-    if (!settings.token || !settings.appUrl) { setError('Configure your token and app URL in settings'); return }
+    useImperativeHandle(ref, () => ({
+      submit: async () => {
+        if (!title.trim()) { onError('Title is required'); return }
+        if (!settings.token || !settings.appUrl) { onError('Configure your token and app URL in settings'); return }
 
-    setSaving(true)
-    setError('')
+        onSaving(true)
+        onError('')
+        const subtaskList = subtasks.split('\n').map(s => s.trim()).filter(Boolean)
 
-    const subtaskList = subtasks
-      .split('\n')
-      .map(s => s.trim())
-      .filter(Boolean)
+        try {
+          const { id } = await capture(settings, 'task', {
+            title: title.trim(),
+            notes: notes.trim() || undefined,
+            status,
+            priority,
+            due_date: dueDate || undefined,
+            source_url: pageCtx.url || undefined,
+            source_title: pageCtx.title || undefined,
+            projects,
+            subtasks: subtaskList,
+          })
+          onSuccess('task', id)
+        } catch (err: any) {
+          onError(err.message ?? 'Failed to save. Check your settings.')
+        } finally {
+          onSaving(false)
+        }
+      },
+    }))
 
-    try {
-      const { id } = await capture(settings, 'task', {
-        title: title.trim(),
-        notes: notes.trim() || undefined,
-        status,
-        priority,
-        due_date: dueDate || undefined,
-        source_url: pageCtx.url || undefined,
-        source_title: pageCtx.title || undefined,
-        projects,
-        subtasks: subtaskList,
-      })
-      onSuccess('task', id)
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to save. Check your settings.')
-    } finally {
-      setSaving(false)
-    }
+    const field = 'w-full text-sm px-3 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition placeholder:text-gray-300'
+    const label = 'block text-xs font-medium text-gray-500 mb-1'
+
+    return (
+      <div className="space-y-3 py-1">
+        <div>
+          <label className={label}>Title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Task title…" className={field} autoFocus />
+        </div>
+
+        <div>
+          <label className={label}>Notes</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional context…" rows={2} className={field} />
+        </div>
+
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className={label}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} className={field}>
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="blocked">Blocked</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className={label}>Priority</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)} className={field}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className={label}>Due Date</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={field} />
+        </div>
+
+        <div>
+          <label className={label}>Projects</label>
+          <MultiSelect
+            options={metadata.projects}
+            selected={projects}
+            onChange={setProjects}
+            placeholder={metaLoading ? 'Loading…' : 'Select projects…'}
+          />
+        </div>
+
+        <div>
+          <label className={label}>
+            Subtasks <span className="text-gray-300 font-normal">(one per line)</span>
+          </label>
+          <textarea
+            value={subtasks}
+            onChange={e => setSubtasks(e.target.value)}
+            placeholder={'Research options\nWrite draft'}
+            rows={2}
+            className={field}
+          />
+        </div>
+
+        <SourcePreview url={pageCtx.url} title={pageCtx.title} />
+      </div>
+    )
   }
+)
 
-  return (
-    <div className="space-y-3">
-      {/* Title */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="Task title..."
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-        />
-      </div>
-
-      {/* Notes */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Additional context..."
-          rows={2}
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-        />
-      </div>
-
-      {/* Status + Priority */}
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-          <select
-            value={status}
-            onChange={e => setStatus(e.target.value)}
-            className="w-full text-sm px-2.5 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          >
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
-          <select
-            value={priority}
-            onChange={e => setPriority(e.target.value)}
-            className="w-full text-sm px-2.5 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Due Date */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
-        <input
-          type="date"
-          value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
-      </div>
-
-      {/* Projects */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Projects</label>
-        <MultiSelect
-          options={metadata.projects}
-          selected={projects}
-          onChange={setProjects}
-          placeholder={metaLoading ? 'Loading...' : 'Select projects...'}
-        />
-      </div>
-
-      {/* Subtasks */}
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">
-          Subtasks <span className="text-gray-400 font-normal">(one per line)</span>
-        </label>
-        <textarea
-          value={subtasks}
-          onChange={e => setSubtasks(e.target.value)}
-          placeholder="Subtask one&#10;Subtask two"
-          rows={2}
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-        />
-      </div>
-
-      {/* Source preview */}
-      <SourcePreview url={pageCtx.url} title={pageCtx.title} />
-
-      {/* Error */}
-      {error && (
-        <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
-      )}
-
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={saving || !title.trim()}
-        className="w-full py-2.5 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-      >
-        {saving ? 'Saving…' : 'Save Task'}
-      </button>
-    </div>
-  )
-}
+TaskForm.displayName = 'TaskForm'
