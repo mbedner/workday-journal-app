@@ -15,6 +15,7 @@ import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ArchivePage } from './pages/ArchivePage'
+import { PrivacyPage } from './pages/PrivacyPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/mfa" element={<MfaVerifyPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
