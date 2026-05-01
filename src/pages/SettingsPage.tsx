@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RiCheckLine, RiCloseLine, RiPencilLine, RiShieldCheckLine, RiShieldLine, RiUserLine } from '@remixicon/react'
+import { RiCheckLine, RiCloseLine, RiPencilLine, RiPlugLine, RiShieldCheckLine, RiShieldLine, RiUserLine } from '@remixicon/react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { useAttendees } from '../hooks/useAttendees'
@@ -9,6 +9,13 @@ import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { MfaSetupModal } from '../components/ui/MfaSetupModal'
 import { useToast } from '../contexts/ToastContext'
+
+interface ApiToken {
+  id: string
+  name: string
+  created_at: string
+  last_used_at: string | null
+}
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
@@ -34,6 +41,58 @@ export function SettingsPage() {
   }
   const [exporting, setExporting] = useState(false)
   const [signOutModal, setSignOutModal] = useState(false)
+
+  // Extension API tokens
+  const [apiTokens, setApiTokens] = useState<ApiToken[]>([])
+  const [tokensLoading, setTokensLoading] = useState(true)
+  const [generatingToken, setGeneratingToken] = useState(false)
+  const [newTokenValue, setNewTokenValue] = useState<string | null>(null)
+  const [revokeModal, setRevokeModal] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState(false)
+
+  const loadApiTokens = async () => {
+    setTokensLoading(true)
+    const { data } = await supabase
+      .from('api_tokens')
+      .select('id, name, created_at, last_used_at')
+      .order('created_at', { ascending: false })
+    setApiTokens(data ?? [])
+    setTokensLoading(false)
+  }
+
+  const generateToken = async () => {
+    setGeneratingToken(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const token = 'wj_' + crypto.randomUUID().replace(/-/g, '')
+    const { error } = await supabase.from('api_tokens').insert({
+      user_id: user!.id,
+      token,
+      name: 'Extension Token',
+    })
+    if (error) {
+      addToast('Failed to generate token', 'error')
+    } else {
+      setNewTokenValue(token)
+      await loadApiTokens()
+    }
+    setGeneratingToken(false)
+  }
+
+  const revokeToken = async () => {
+    if (!revokeModal) return
+    setRevoking(true)
+    const { error } = await supabase.from('api_tokens').delete().eq('id', revokeModal)
+    if (error) {
+      addToast('Failed to revoke token', 'error')
+    } else {
+      addToast('Token revoked', 'info')
+      setApiTokens(prev => prev.filter(t => t.id !== revokeModal))
+    }
+    setRevoking(false)
+    setRevokeModal(null)
+  }
+
+  useEffect(() => { loadApiTokens() }, [])
 
   // MFA state
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null)
@@ -229,6 +288,79 @@ export function SettingsPage() {
         <p className="text-xs text-gray-400 mt-3">Renaming or removing here only affects suggestions — existing meeting notes are not changed.</p>
       </Card>
 
+      {/* Extension API Token card */}
+      <Card>
+        <div className="flex items-center gap-2 mb-3">
+          <RiPlugLine size={15} className="text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-900">Extension API Token</h2>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Generate a token to connect the Workday Journal Chrome extension. Paste it into the extension's settings.
+        </p>
+
+        {tokensLoading ? (
+          <p className="text-xs text-gray-400">Loading…</p>
+        ) : apiTokens.length === 0 ? (
+          <p className="text-xs text-gray-400 mb-3">No tokens yet.</p>
+        ) : (
+          <ul className="space-y-2 mb-3">
+            {apiTokens.map(t => (
+              <li key={t.id} className="flex items-center justify-between gap-2 py-1.5 px-3 rounded-lg bg-gray-50 border border-gray-100">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-800">{t.name}</p>
+                  <p className="text-xs text-gray-400">
+                    Created {new Date(t.created_at).toLocaleDateString()}
+                    {t.last_used_at && ` · Last used ${new Date(t.last_used_at).toLocaleDateString()}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRevokeModal(t.id)}
+                  className="text-xs text-red-500 hover:text-red-700 shrink-0 transition"
+                >
+                  Revoke
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {newTokenValue && (
+          <div className="mb-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+            <p className="text-xs font-medium text-indigo-700">Token generated — copy it now, it won't be shown again.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono text-indigo-900 bg-white border border-indigo-200 rounded px-2 py-1.5 truncate">
+                {newTokenValue}
+              </code>
+              <button
+                onClick={() => { navigator.clipboard.writeText(newTokenValue); addToast('Copied!', 'success') }}
+                className="text-xs px-2.5 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 transition shrink-0"
+              >
+                Copy
+              </button>
+            </div>
+            <button
+              onClick={() => setNewTokenValue(null)}
+              className="text-xs text-indigo-500 hover:text-indigo-700"
+            >
+              Done, I've saved it
+            </button>
+          </div>
+        )}
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={generateToken}
+          loading={generatingToken}
+          disabled={apiTokens.length >= 5}
+        >
+          Generate token
+        </Button>
+        {apiTokens.length >= 5 && (
+          <p className="text-xs text-gray-400 mt-1.5">Revoke an existing token to generate a new one.</p>
+        )}
+      </Card>
+
       <Card>
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Export data</h2>
         <p className="text-xs text-gray-500 mb-4">
@@ -266,6 +398,19 @@ export function SettingsPage() {
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setSignOutModal(false)}>Cancel</Button>
             <Button variant="danger" onClick={handleSignOut}>Sign out</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Revoke token confirmation */}
+      <Modal open={revokeModal !== null} onClose={() => setRevokeModal(null)} title="Revoke token?">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            The extension will stop working immediately. You can generate a new token at any time.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRevokeModal(null)}>Cancel</Button>
+            <Button variant="danger" onClick={revokeToken} loading={revoking}>Revoke</Button>
           </div>
         </div>
       </Modal>

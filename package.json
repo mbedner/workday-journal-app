@@ -8,7 +8,9 @@
     "dev:ui": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "build:ext": "cd extension && npm install && npm run build",
+    "dev:ext": "cd extension && npm install && npm run dev"
   },
   "dependencies": {
     "@remixicon/react": "^4.9.0",

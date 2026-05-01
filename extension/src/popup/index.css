@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fix popup body dimensions */
+body {
+  min-width: 380px;
+  max-width: 380px;
+  min-height: 100px;
+  overflow-x: hidden;
+}
+
+/* Smooth textarea resize */
+textarea {
+  resize: vertical;
+}
+
+/* Custom scrollbar for dropdowns */
+.dropdown-list::-webkit-scrollbar {
+  width: 4px;
+}
+.dropdown-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dropdown-list::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 2px;
+}

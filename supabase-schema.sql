@@ -175,3 +175,35 @@ create policy "transcript_tags: own rows" on transcript_tags for all using (auth
 create index if not exists idx_journal_entries_user_date on journal_entries(user_id, entry_date desc);
 create index if not exists idx_tasks_user_status on tasks(user_id, status);
 create index if not exists idx_transcripts_user_date on transcripts(user_id, meeting_date desc);
+
+-- ─────────────────────────────────────────────
+-- EXTENSION API TOKENS (run as migration)
+-- ─────────────────────────────────────────────
+
+-- API tokens for Chrome extension auth
+create table if not exists api_tokens (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  token text not null unique,
+  name text not null default 'Extension Token',
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+alter table api_tokens enable row level security;
+
+create policy "api_tokens: own rows" on api_tokens
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create index if not exists idx_api_tokens_token on api_tokens(token);
+
+-- Add source URL columns to tasks + transcripts (for extension captures)
+alter table tasks add column if not exists source_url text;
+alter table tasks add column if not exists source_title text;
+alter table transcripts add column if not exists source_url text;
+alter table transcripts add column if not exists source_title text;
+
+-- Extend source_type to include 'extension'
+alter table tasks drop constraint if exists tasks_source_type_check;
+alter table tasks add constraint tasks_source_type_check
+  check (source_type in ('manual', 'journal', 'transcript', 'extension'));
