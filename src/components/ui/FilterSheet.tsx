@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { RiCloseLine, RiEqualizerLine } from '@remixicon/react'
 
@@ -27,13 +28,13 @@ export function FilterSheet({ open, onClose, children, activeCount = 0 }: Filter
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — portal ensures fixed covers true viewport regardless of ancestor overflow/transform */}
           <motion.div
-            className="fixed inset-0 z-40 bg-black/40 sm:hidden"
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -43,7 +44,7 @@ export function FilterSheet({ open, onClose, children, activeCount = 0 }: Filter
 
           {/* Sheet */}
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl sm:hidden"
+            className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -90,7 +91,8 @@ export function FilterSheet({ open, onClose, children, activeCount = 0 }: Filter
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
 
