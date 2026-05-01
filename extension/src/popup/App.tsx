@@ -160,7 +160,7 @@ export function App() {
       </div>
 
       {/* Tab switcher */}
-      <div className="shrink-0 flex px-4 pt-3 pb-2 gap-1">
+      <div className="shrink-0 flex px-4 pt-3 pb-2 gap-1 border-b border-gray-100">
         {(['task', 'meeting'] as const).map(t => (
           <button
             key={t}
