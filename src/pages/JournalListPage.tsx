@@ -240,12 +240,14 @@ export function JournalListPage() {
 
       {/* Mobile: search + filter trigger */}
       <div className="flex gap-2 sm:hidden">
-        <Input
-          placeholder="Search journals..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1"
-        />
+        <div className="flex-1 min-w-0">
+          <Input
+            placeholder="Search journals..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full"
+          />
+        </div>
         <FilterTrigger
           onClick={() => setFilterSheetOpen(true)}
           activeCount={[projectFilter, ratingFilter, sort !== 'newest' ? sort : ''].filter(Boolean).length}

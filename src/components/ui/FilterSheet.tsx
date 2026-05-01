@@ -105,7 +105,7 @@ export function FilterTrigger({ onClick, activeCount = 0 }: FilterTriggerProps) 
   return (
     <button
       onClick={onClick}
-      className="relative flex items-center gap-1.5 h-9 px-3 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors shrink-0 sm:hidden"
+      className="relative flex items-center gap-1.5 h-10 px-3 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors shrink-0 sm:hidden"
     >
       <RiEqualizerLine size={14} />
       <span>Filter</span>
