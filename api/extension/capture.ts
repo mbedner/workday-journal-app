@@ -42,7 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (!userId) return res.status(401).json({ error: 'Invalid or expired token' })
 
-  const supabase = getServiceClient()
+  let supabase: ReturnType<typeof getServiceClient>
+  try {
+    supabase = getServiceClient()
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message })
+  }
   const { type, data } = (req.body ?? {}) as { type?: string; data?: Record<string, any> }
 
   // ── Task ─────────────────────────────────────────────────────────────────

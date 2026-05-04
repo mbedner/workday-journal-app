@@ -37,7 +37,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (!userId) return res.status(401).json({ error: 'Invalid or expired token' })
 
-  const supabase = getServiceClient()
+  let supabase: ReturnType<typeof getServiceClient>
+  try {
+    supabase = getServiceClient()
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message })
+  }
   const [{ data: projects }, { data: tags }, { data: attendees }] = await Promise.all([
     supabase.from('projects').select('id, name').eq('user_id', userId).order('name'),
     supabase.from('tags').select('id, name').eq('user_id', userId).order('name'),
