@@ -1,21 +1,27 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
 
-function getServiceClient() {
+function db() {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_KEY
-  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY must be set')
-  return createClient(url, key, { auth: { persistSession: false } })
+  if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_KEY env vars are not set')
+  const base = `${url}/rest/v1`
+  const h: Record<string, string> = {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  }
+  return {
+    async select(table: string, qs: string): Promise<any[]> {
+      const res = await fetch(`${base}/${table}?${qs}`, { headers: h })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+  }
 }
 
 async function validateToken(token: string): Promise<string | null> {
-  const supabase = getServiceClient()
-  const { data } = await supabase
-    .from('api_tokens')
-    .select('user_id')
-    .eq('token', token)
-    .single()
-  return data?.user_id ?? null
+  const rows = await db().select('api_tokens', `token=eq.${encodeURIComponent(token)}&select=user_id`)
+  return rows[0]?.user_id ?? null
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -37,21 +43,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (!userId) return res.status(401).json({ error: 'Invalid or expired token' })
 
-  let supabase: ReturnType<typeof getServiceClient>
   try {
-    supabase = getServiceClient()
+    const client = db()
+    const [projects, tags, attendees] = await Promise.all([
+      client.select('projects', `user_id=eq.${userId}&select=name&order=name`),
+      client.select('tags', `user_id=eq.${userId}&select=name&order=name`),
+      client.select('attendees', `user_id=eq.${userId}&select=name&order=name`),
+    ])
+    return res.status(200).json({
+      projects: projects.map(p => p.name),
+      tags: tags.map(t => t.name),
+      attendees: attendees.map(a => a.name),
+    })
   } catch (err: any) {
     return res.status(500).json({ error: err.message })
   }
-  const [{ data: projects }, { data: tags }, { data: attendees }] = await Promise.all([
-    supabase.from('projects').select('id, name').eq('user_id', userId).order('name'),
-    supabase.from('tags').select('id, name').eq('user_id', userId).order('name'),
-    supabase.from('attendees').select('id, name').eq('user_id', userId).order('name'),
-  ])
-
-  return res.status(200).json({
-    projects: (projects ?? []).map((p: any) => p.name),
-    tags: (tags ?? []).map((t: any) => t.name),
-    attendees: (attendees ?? []).map((a: any) => a.name),
-  })
 }
