@@ -144,12 +144,22 @@ export function TranscriptsListPage() {
   const grouped = useMemo(() => {
     if (search || projectFilter || view === 'grid' || view === 'calendar') return null
     const groups = new Map<string, Transcript[]>()
+    // Track the best (most recent) effective date seen per group for sorting
+    const groupDate = new Map<string, string>()
     for (const t of filtered) {
       const key = monthLabel(t)
+      const effectiveDate = t.meeting_date ?? t.created_at?.slice(0, 10) ?? ''
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(t)
+      // Keep the most recent effective date for this group
+      if (!groupDate.has(key) || effectiveDate > groupDate.get(key)!) {
+        groupDate.set(key, effectiveDate)
+      }
     }
-    return Array.from(groups.entries())
+    // Sort groups by their most recent effective date, descending
+    return Array.from(groups.entries()).sort(([a], [b]) =>
+      (groupDate.get(b) ?? '').localeCompare(groupDate.get(a) ?? '')
+    )
   }, [filtered, search, projectFilter, view])
 
   const calendarItems: CalendarItem[] = useMemo(() => filtered
