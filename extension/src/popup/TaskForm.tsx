@@ -27,7 +27,7 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
     const [priority, setPriority] = useState('medium')
     const [dueDate, setDueDate] = useState('')
     const [projects, setProjects] = useState<string[]>([])
-    const [subtasks, setSubtasks] = useState('')
+    const [subtasks, setSubtasks] = useState<string[]>([''])
 
     // Only pre-fill if the user has text selected — never auto-fill from page title
     useEffect(() => {
@@ -44,7 +44,7 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
 
         onSaving(true)
         onError('')
-        const subtaskList = subtasks.split('\n').map(s => s.trim()).filter(Boolean)
+        const subtaskList = subtasks.map(s => s.trim()).filter(Boolean)
 
         try {
           const { id } = await capture(settings, 'task', {
@@ -126,16 +126,61 @@ export const TaskForm = forwardRef<TaskFormHandle, Props>(
         </div>
 
         <div>
-          <label className={label}>
-            Subtasks <span className="text-gray-300 font-normal">(one per line)</span>
-          </label>
-          <textarea
-            value={subtasks}
-            onChange={e => setSubtasks(e.target.value)}
-            placeholder={'Research options\nWrite draft'}
-            rows={2}
-            className={field}
-          />
+          <label className={label}>Subtasks</label>
+          <div className="space-y-1.5">
+            {subtasks.map((sub, i) => (
+              <div key={i} className="flex gap-1.5 items-center">
+                <input
+                  value={sub}
+                  onChange={e => {
+                    const next = [...subtasks]
+                    next[i] = e.target.value
+                    setSubtasks(next)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const next = [...subtasks]
+                      next.splice(i + 1, 0, '')
+                      setSubtasks(next)
+                      // focus the new input on next render
+                      setTimeout(() => {
+                        const inputs = document.querySelectorAll<HTMLInputElement>('[data-subtask]')
+                        inputs[i + 1]?.focus()
+                      }, 0)
+                    } else if (e.key === 'Backspace' && sub === '' && subtasks.length > 1) {
+                      e.preventDefault()
+                      const next = subtasks.filter((_, j) => j !== i)
+                      setSubtasks(next)
+                      setTimeout(() => {
+                        const inputs = document.querySelectorAll<HTMLInputElement>('[data-subtask]')
+                        inputs[Math.max(0, i - 1)]?.focus()
+                      }, 0)
+                    }
+                  }}
+                  data-subtask
+                  placeholder={i === 0 ? 'Add a subtask…' : 'Another subtask…'}
+                  className={field}
+                />
+                {subtasks.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSubtasks(subtasks.filter((_, j) => j !== i))}
+                    className="shrink-0 text-gray-300 hover:text-red-400 transition text-lg leading-none pb-0.5"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSubtasks([...subtasks, ''])}
+              className="text-xs text-indigo-500 hover:text-indigo-700 transition font-medium"
+            >
+              + Add subtask
+            </button>
+          </div>
         </div>
 
         <SourcePreview url={pageCtx.url} title={pageCtx.title} />
