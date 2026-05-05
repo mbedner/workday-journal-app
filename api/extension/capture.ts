@@ -104,11 +104,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (subtasks.length) {
-        const subtaskRows = (subtasks as string[]).filter(s => s?.trim()).map(s => ({
-          user_id: userId, title: s.trim(), status: 'todo', priority: 'medium',
-          source_type: 'extension', source_id: task.id,
+        const subtaskRows = (subtasks as string[]).filter(s => s?.trim()).map((s, i) => ({
+          user_id: userId, task_id: task.id, title: s.trim(),
+          completed: false, position: i,
         }))
-        await client.insertMany('tasks', subtaskRows)
+        await client.insertMany('subtasks', subtaskRows)
       }
     } catch (err: any) {
       return res.status(500).json({ error: err.message })

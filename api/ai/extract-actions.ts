@@ -40,7 +40,7 @@ Each array may be empty if nothing relevant was found. No other text.`
           contents: [{ role: 'user', parts: [{ text: input }] }],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 4096,
             responseMimeType: 'application/json',
             thinkingConfig: { thinkingBudget: 0 },
           },
