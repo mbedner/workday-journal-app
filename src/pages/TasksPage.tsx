@@ -64,6 +64,7 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useState('open')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
+  const [groupBy, setGroupBy] = useState<'none' | 'project'>('none')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
 
@@ -305,6 +306,30 @@ export function TasksPage() {
   // Load more is only valid when no client-side-only filters are active
   const canLoadMore = hasMoreTasks && !search && !projectFilter
 
+  // Group by project — tasks in multiple projects appear in each group
+  const groupedByProject = useMemo(() => {
+    if (groupBy !== 'project' || view === 'calendar') return null
+    const groups = new Map<string, Task[]>()
+    for (const task of filtered) {
+      const projects = projectMap[task.id] ?? []
+      if (projects.length === 0) {
+        if (!groups.has('__none__')) groups.set('__none__', [])
+        groups.get('__none__')!.push(task)
+      } else {
+        for (const p of projects) {
+          if (!groups.has(p)) groups.set(p, [])
+          groups.get(p)!.push(task)
+        }
+      }
+    }
+    // Named projects alphabetically, "No project" last
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === '__none__') return 1
+      if (b === '__none__') return -1
+      return a.localeCompare(b)
+    })
+  }, [filtered, projectMap, groupBy, view]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const calendarItems: CalendarItem[] = useMemo(() => filtered
     .filter(t => t.due_date)
     .map(t => {
@@ -345,6 +370,7 @@ export function TasksPage() {
             statusFilter && statusFilter !== 'open' ? statusFilter : '',
             priorityFilter,
             projectFilter,
+            groupBy !== 'none' ? groupBy : '',
             sort !== 'newest' ? sort : '',
           ].filter(Boolean).length}
         />
@@ -373,6 +399,10 @@ export function TasksPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
+        <Select value={groupBy} onChange={e => setGroupBy(e.target.value as 'none' | 'project')} className="w-40">
+          <option value="none">No grouping</option>
+          <option value="project">Group by project</option>
+        </Select>
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-32">
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
@@ -389,6 +419,7 @@ export function TasksPage() {
           statusFilter && statusFilter !== 'open' ? statusFilter : '',
           priorityFilter,
           projectFilter,
+          groupBy !== 'none' ? groupBy : '',
           sort !== 'newest' ? sort : '',
         ].filter(Boolean).length}
       >
@@ -418,6 +449,12 @@ export function TasksPage() {
             </Select>
           </FilterRow>
         )}
+        <FilterRow label="Group by">
+          <Select value={groupBy} onChange={e => setGroupBy(e.target.value as 'none' | 'project')} className="w-full">
+            <option value="none">No grouping</option>
+            <option value="project">Project</option>
+          </Select>
+        </FilterRow>
         <FilterRow label="Sort">
           <Select value={sort} onChange={e => setSort(e.target.value)} className="w-full">
             <option value="newest">Newest first</option>
@@ -449,64 +486,120 @@ export function TasksPage() {
         </>
       ) : view === 'grid' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map(task => {
-              const isDone = task.status === 'done'
-              const isToggling = toggling === task.id
-              const taskProjects = projectMap[task.id] ?? []
-              const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
-              const subs = subtaskMap[task.id] ?? []
-              return (
-                <div
-                  key={task.id}
-                  className={`bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm transition-all group ${isDone ? 'opacity-60' : 'hover:border-indigo-200'}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <motion.button
-                      onClick={() => toggleDone(task)}
-                      disabled={isToggling}
-                      className="mt-0.5 shrink-0 disabled:opacity-40"
-                      whileTap={{ scale: 0.75 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                    >
-                      {isDone
-                        ? <RiCheckboxCircleLine size={18} className="text-indigo-500" />
-                        : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                      }
-                    </motion.button>
-                    <p className={`text-sm font-medium leading-snug flex-1 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                      {task.title}
+          {groupedByProject ? (
+            <div className="space-y-6">
+              {groupedByProject.map(([group, groupTasks]) => (
+                <div key={group}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
+                      {group === '__none__' ? 'No project' : group}
                     </p>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <button onClick={() => openEdit(task)} className="p-1 text-gray-400 hover:text-indigo-600 transition rounded">
-                        <RiPencilLine size={13} />
-                      </button>
-                      <button onClick={() => setDeleteId(task.id)} className="p-1 text-gray-400 hover:text-red-500 transition rounded">
-                        <RiDeleteBinLine size={13} />
-                      </button>
-                    </div>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-300 shrink-0">{groupTasks.length}</span>
                   </div>
-                  <div className="flex gap-1.5 flex-wrap items-center mt-auto">
-                    {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
-                    {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
-                    <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                    {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
-                    {task.due_date && (
-                      <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
-                        {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
-                      </span>
-                    )}
-                    {subs.length > 0 && (
-                      <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                        <RiCheckboxCircleLine size={11} className={subs.every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
-                        {subs.filter(s => s.completed).length}/{subs.length}
-                      </span>
-                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {groupTasks.map(task => {
+                      const isDone = task.status === 'done'
+                      const isToggling = toggling === task.id
+                      const taskProjects = projectMap[task.id] ?? []
+                      const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                      const subs = subtaskMap[task.id] ?? []
+                      return (
+                        <div key={task.id} className={`bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm transition-all group ${isDone ? 'opacity-60' : 'hover:border-indigo-200'}`}>
+                          <div className="flex items-start gap-2">
+                            <motion.button onClick={() => toggleDone(task)} disabled={isToggling} className="mt-0.5 shrink-0 disabled:opacity-40" whileTap={{ scale: 0.75 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+                              {isDone ? <RiCheckboxCircleLine size={18} className="text-indigo-500" /> : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />}
+                            </motion.button>
+                            <p className={`text-sm font-medium leading-snug flex-1 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{task.title}</p>
+                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button onClick={() => openEdit(task)} className="p-1 text-gray-400 hover:text-indigo-600 transition rounded"><RiPencilLine size={13} /></button>
+                              <button onClick={() => setDeleteId(task.id)} className="p-1 text-gray-400 hover:text-red-500 transition rounded"><RiDeleteBinLine size={13} /></button>
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap items-center mt-auto">
+                            {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                            {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                            <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                            {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                            {task.due_date && (
+                              <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+                                {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                              </span>
+                            )}
+                            {subs.length > 0 && (
+                              <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                                <RiCheckboxCircleLine size={11} className={subs.every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                                {subs.filter(s => s.completed).length}/{subs.length}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filtered.map(task => {
+                const isDone = task.status === 'done'
+                const isToggling = toggling === task.id
+                const taskProjects = projectMap[task.id] ?? []
+                const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                const subs = subtaskMap[task.id] ?? []
+                return (
+                  <div
+                    key={task.id}
+                    className={`bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm transition-all group ${isDone ? 'opacity-60' : 'hover:border-indigo-200'}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <motion.button
+                        onClick={() => toggleDone(task)}
+                        disabled={isToggling}
+                        className="mt-0.5 shrink-0 disabled:opacity-40"
+                        whileTap={{ scale: 0.75 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                      >
+                        {isDone
+                          ? <RiCheckboxCircleLine size={18} className="text-indigo-500" />
+                          : <RiCircleLine size={18} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                        }
+                      </motion.button>
+                      <p className={`text-sm font-medium leading-snug flex-1 ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                        {task.title}
+                      </p>
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={() => openEdit(task)} className="p-1 text-gray-400 hover:text-indigo-600 transition rounded">
+                          <RiPencilLine size={13} />
+                        </button>
+                        <button onClick={() => setDeleteId(task.id)} className="p-1 text-gray-400 hover:text-red-500 transition rounded">
+                          <RiDeleteBinLine size={13} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap items-center mt-auto">
+                      {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                      {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                      <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                      {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                      {task.due_date && (
+                        <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+                          {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                        </span>
+                      )}
+                      {subs.length > 0 && (
+                        <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                          <RiCheckboxCircleLine size={11} className={subs.every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                          {subs.filter(s => s.completed).length}/{subs.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMoreTasks} loading={loadingMore}>Load more</Button>
@@ -517,67 +610,125 @@ export function TasksPage() {
       ) : (
         /* List view */
         <>
-          <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-            {filtered.map(task => {
-              const isDone = task.status === 'done'
-              const isToggling = toggling === task.id
-              const taskProjects = projectMap[task.id] ?? []
-              const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
-              return (
-                <div
-                  key={task.id}
-                  className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
-                >
-                  <motion.button
-                    onClick={() => toggleDone(task)}
-                    disabled={isToggling}
-                    className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
-                    aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
-                    whileTap={{ scale: 0.75 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                  >
-                    {isDone
-                      ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
-                      : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                    }
-                  </motion.button>
-                  <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                      {task.title}
+          {groupedByProject ? (
+            <div className="space-y-4">
+              {groupedByProject.map(([group, groupTasks]) => (
+                <div key={group}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
+                      {group === '__none__' ? 'No project' : group}
                     </p>
-                    <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-                      {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
-                      {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
-                      <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                      {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
-                      {task.due_date && (
-                        <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
-                        </span>
-                      )}
-                      {task.notes && (
-                        <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
-                      )}
-                      {(subtaskMap[task.id]?.length ?? 0) > 0 && (
-                        <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                          <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
-                          {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
-                      <RiPencilLine size={14} />
-                    </button>
-                    <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
-                      <RiDeleteBinLine size={14} />
-                    </button>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-300 shrink-0">{groupTasks.length}</span>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                    {groupTasks.map(task => {
+                      const isDone = task.status === 'done'
+                      const isToggling = toggling === task.id
+                      const taskProjects = projectMap[task.id] ?? []
+                      const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                      return (
+                        <div key={task.id} className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}>
+                          <motion.button onClick={() => toggleDone(task)} disabled={isToggling} className="mt-0.5 shrink-0 transition-colors disabled:opacity-40" aria-label={isDone ? 'Mark incomplete' : 'Mark complete'} whileTap={{ scale: 0.75 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+                            {isDone ? <RiCheckboxCircleLine size={20} className="text-indigo-500" /> : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />}
+                          </motion.button>
+                          <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{task.title}</p>
+                            <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                              {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                              {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                              <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                              {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                              {task.due_date && (
+                                <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                                </span>
+                              )}
+                              {task.notes && (
+                                <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
+                              )}
+                              {(subtaskMap[task.id]?.length ?? 0) > 0 && (
+                                <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                                  <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                                  {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded"><RiPencilLine size={14} /></button>
+                            <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded"><RiDeleteBinLine size={14} /></button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+              {filtered.map(task => {
+                const isDone = task.status === 'done'
+                const isToggling = toggling === task.id
+                const taskProjects = projectMap[task.id] ?? []
+                const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                return (
+                  <div
+                    key={task.id}
+                    className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
+                  >
+                    <motion.button
+                      onClick={() => toggleDone(task)}
+                      disabled={isToggling}
+                      className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
+                      aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                      whileTap={{ scale: 0.75 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                    >
+                      {isDone
+                        ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
+                        : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                      }
+                    </motion.button>
+                    <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                        {task.title}
+                      </p>
+                      <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                        {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                        {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                        <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                        {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                        {task.due_date && (
+                          <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                          </span>
+                        )}
+                        {task.notes && (
+                          <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
+                        )}
+                        {(subtaskMap[task.id]?.length ?? 0) > 0 && (
+                          <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                            <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                            {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
+                        <RiPencilLine size={14} />
+                      </button>
+                      <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
+                        <RiDeleteBinLine size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMoreTasks} loading={loadingMore}>Load more</Button>
