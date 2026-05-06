@@ -700,20 +700,22 @@ export function TasksPage() {
                                 transition={{ duration: 0.15, ease: 'easeInOut' }}
                                 className="overflow-hidden"
                               >
-                                <div className="px-4 pb-2.5 pl-14 space-y-0.5 bg-gray-50/60 border-t border-gray-100">
-                                  {subs.map(sub => (
-                                    <div key={sub.id} className="flex items-center gap-2 py-1">
-                                      <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
-                                        {sub.completed
-                                          ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
-                                          : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                                        }
-                                      </button>
-                                      <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
-                                        {sub.title}
-                                      </span>
-                                    </div>
-                                  ))}
+                                <div className="px-4 pb-2 pt-0.5">
+                                  <div className="ml-6 pl-3 border-l-2 border-gray-200">
+                                    {subs.map(sub => (
+                                      <div key={sub.id} className="flex items-center gap-2 py-1">
+                                        <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
+                                          {sub.completed
+                                            ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
+                                            : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                                          }
+                                        </button>
+                                        <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                          {sub.title}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               </motion.div>
                             )}
@@ -804,20 +806,22 @@ export function TasksPage() {
                           transition={{ duration: 0.15, ease: 'easeInOut' }}
                           className="overflow-hidden"
                         >
-                          <div className="px-4 pb-2.5 pl-14 space-y-0.5 bg-gray-50/60 border-t border-gray-100">
-                            {subs.map(sub => (
-                              <div key={sub.id} className="flex items-center gap-2 py-1">
-                                <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
-                                  {sub.completed
-                                    ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
-                                    : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                                  }
-                                </button>
-                                <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
-                                  {sub.title}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="px-4 pb-2 pt-0.5">
+                            <div className="ml-6 pl-3 border-l-2 border-gray-200">
+                              {subs.map(sub => (
+                                <div key={sub.id} className="flex items-center gap-2 py-1">
+                                  <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
+                                    {sub.completed
+                                      ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
+                                      : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                                    }
+                                  </button>
+                                  <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                    {sub.title}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </motion.div>
                       )}
