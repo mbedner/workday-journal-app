@@ -64,7 +64,9 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useState('open')
   const [priorityFilter, setPriorityFilter] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
-  const [groupBy, setGroupBy] = useState<'none' | 'project'>('none')
+  const [groupBy, setGroupBy] = useState<'none' | 'project'>(
+    () => (localStorage.getItem('tasks-groupby') as 'none' | 'project') ?? 'none'
+  )
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('newest')
 
@@ -72,6 +74,7 @@ export function TasksPage() {
     () => (localStorage.getItem('tasks-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('tasks-view', v) }
+  const handleGroupByChange = (v: 'none' | 'project') => { setGroupBy(v); localStorage.setItem('tasks-groupby', v) }
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const nameToId = useMemo(
@@ -405,7 +408,7 @@ export function TasksPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
-        <Select value={groupBy} onChange={e => setGroupBy(e.target.value as 'none' | 'project')} className="w-40">
+        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-40">
           <option value="none">No grouping</option>
           <option value="project">Group by project</option>
         </Select>
@@ -456,7 +459,7 @@ export function TasksPage() {
           </FilterRow>
         )}
         <FilterRow label="Group by">
-          <Select value={groupBy} onChange={e => setGroupBy(e.target.value as 'none' | 'project')} className="w-full">
+          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-full">
             <option value="none">No grouping</option>
             <option value="project">Project</option>
           </Select>
