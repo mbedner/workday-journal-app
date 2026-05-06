@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine } from '@remixicon/react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine, RiArrowDownSLine } from '@remixicon/react'
 import { format, parseISO, isToday, isPast } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Task, Subtask } from '../types'
@@ -86,6 +86,12 @@ export function TasksPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
+  const toggleExpanded = (id: string) => setExpandedTasks(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
 
   const PAGE_SIZE = 100
 
@@ -627,38 +633,80 @@ export function TasksPage() {
                       const isToggling = toggling === task.id
                       const taskProjects = projectMap[task.id] ?? []
                       const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                      const subs = subtaskMap[task.id] ?? []
+                      const isExpanded = expandedTasks.has(task.id)
                       return (
-                        <div key={task.id} className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}>
-                          <motion.button onClick={() => toggleDone(task)} disabled={isToggling} className="mt-0.5 shrink-0 transition-colors disabled:opacity-40" aria-label={isDone ? 'Mark incomplete' : 'Mark complete'} whileTap={{ scale: 0.75 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
-                            {isDone ? <RiCheckboxCircleLine size={20} className="text-indigo-500" /> : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />}
-                          </motion.button>
-                          <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{task.title}</p>
-                            <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-                              {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
-                              {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
-                              <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                              {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
-                              {task.due_date && (
-                                <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
-                                  {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
-                                </span>
+                        <div key={task.id}>
+                          <div className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}>
+                            <motion.button onClick={() => toggleDone(task)} disabled={isToggling} className="mt-0.5 shrink-0 transition-colors disabled:opacity-40" aria-label={isDone ? 'Mark incomplete' : 'Mark complete'} whileTap={{ scale: 0.75 }} transition={{ type: 'spring', stiffness: 400, damping: 17 }}>
+                              {isDone ? <RiCheckboxCircleLine size={20} className="text-indigo-500" /> : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />}
+                            </motion.button>
+                            <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>{task.title}</p>
+                              <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                                {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                                {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                                <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                                {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                                {task.due_date && (
+                                  <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                                  </span>
+                                )}
+                                {task.notes && (
+                                  <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
+                                )}
+                                {subs.length > 0 && (
+                                  <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                                    <RiCheckboxCircleLine size={11} className={subs.every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                                    {subs.filter(s => s.completed).length}/{subs.length}
+                                  </span>
+                                )}
+                              </div>
+                            </Link>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {subs.length > 0 && (
+                                <button
+                                  onClick={e => { e.preventDefault(); toggleExpanded(task.id) }}
+                                  className={`p-1.5 rounded transition-colors ${isExpanded ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}
+                                  aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                                >
+                                  <RiArrowDownSLine size={15} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                </button>
                               )}
-                              {task.notes && (
-                                <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
-                              )}
-                              {(subtaskMap[task.id]?.length ?? 0) > 0 && (
-                                <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                                  <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
-                                  {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
-                                </span>
-                              )}
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                                <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded"><RiPencilLine size={14} /></button>
+                                <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded"><RiDeleteBinLine size={14} /></button>
+                              </div>
                             </div>
-                          </Link>
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded"><RiPencilLine size={14} /></button>
-                            <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded"><RiDeleteBinLine size={14} /></button>
                           </div>
+                          <AnimatePresence>
+                            {isExpanded && subs.length > 0 && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.15, ease: 'easeInOut' }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-4 pb-2.5 pl-14 space-y-0.5 bg-gray-50/60 border-t border-gray-100">
+                                  {subs.map(sub => (
+                                    <div key={sub.id} className="flex items-center gap-2 py-1">
+                                      <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
+                                        {sub.completed
+                                          ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
+                                          : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                                        }
+                                      </button>
+                                      <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                        {sub.title}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       )
                     })}
@@ -673,57 +721,96 @@ export function TasksPage() {
                 const isToggling = toggling === task.id
                 const taskProjects = projectMap[task.id] ?? []
                 const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
+                const subs = subtaskMap[task.id] ?? []
+                const isExpanded = expandedTasks.has(task.id)
                 return (
-                  <div
-                    key={task.id}
-                    className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}
-                  >
-                    <motion.button
-                      onClick={() => toggleDone(task)}
-                      disabled={isToggling}
-                      className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
-                      aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
-                      whileTap={{ scale: 0.75 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                    >
-                      {isDone
-                        ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
-                        : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
-                      }
-                    </motion.button>
-                    <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                        {task.title}
-                      </p>
-                      <div className="flex gap-1.5 mt-1 flex-wrap items-center">
-                        {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
-                        {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
-                        <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
-                        {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
-                        {task.due_date && (
-                          <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
-                          </span>
+                  <div key={task.id}>
+                    <div className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isDone ? 'bg-gray-50/50' : 'hover:bg-indigo-50/60'}`}>
+                      <motion.button
+                        onClick={() => toggleDone(task)}
+                        disabled={isToggling}
+                        className="mt-0.5 shrink-0 transition-colors disabled:opacity-40"
+                        aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
+                        whileTap={{ scale: 0.75 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                      >
+                        {isDone
+                          ? <RiCheckboxCircleLine size={20} className="text-indigo-500" />
+                          : <RiCircleLine size={20} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                        }
+                      </motion.button>
+                      <Link to={`/tasks/${task.id}`} className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium leading-snug ${isDone ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                          {task.title}
+                        </p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap items-center">
+                          {task.status === 'in_progress' && <Badge variant="blue">In progress</Badge>}
+                          {task.status === 'blocked' && <Badge variant="red">Blocked</Badge>}
+                          <Badge variant={priorityVariants[task.priority]}>{task.priority}</Badge>
+                          {taskProjects.map(p => <ProjectTag key={p} name={p} projectId={nameToId[p]} />)}
+                          {task.due_date && (
+                            <span className={`text-xs ${isOverdue ? 'text-red-500 font-medium' : isDone ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {isOverdue ? 'Overdue · ' : 'Due '}{format(parseISO(task.due_date), 'MMM d')}
+                            </span>
+                          )}
+                          {task.notes && (
+                            <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
+                          )}
+                          {subs.length > 0 && (
+                            <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                              <RiCheckboxCircleLine size={11} className={subs.every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
+                              {subs.filter(s => s.completed).length}/{subs.length}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {subs.length > 0 && (
+                          <button
+                            onClick={e => { e.preventDefault(); toggleExpanded(task.id) }}
+                            className={`p-1.5 rounded transition-colors ${isExpanded ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}
+                            aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                          >
+                            <RiArrowDownSLine size={15} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
                         )}
-                        {task.notes && (
-                          <span className="text-xs text-gray-400 truncate max-w-xs hidden sm:block">{stripMarkup(task.notes)}</span>
-                        )}
-                        {(subtaskMap[task.id]?.length ?? 0) > 0 && (
-                          <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                            <RiCheckboxCircleLine size={11} className={subtaskMap[task.id].every(s => s.completed) ? 'text-indigo-400' : 'text-gray-300'} />
-                            {subtaskMap[task.id].filter(s => s.completed).length}/{subtaskMap[task.id].length}
-                          </span>
-                        )}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                          <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
+                            <RiPencilLine size={14} />
+                          </button>
+                          <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
+                            <RiDeleteBinLine size={14} />
+                          </button>
+                        </div>
                       </div>
-                    </Link>
-                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(task)} className="p-1.5 text-gray-400 hover:text-indigo-600 transition rounded">
-                        <RiPencilLine size={14} />
-                      </button>
-                      <button onClick={() => setDeleteId(task.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition rounded">
-                        <RiDeleteBinLine size={14} />
-                      </button>
                     </div>
+                    <AnimatePresence>
+                      {isExpanded && subs.length > 0 && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.15, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-2.5 pl-14 space-y-0.5 bg-gray-50/60 border-t border-gray-100">
+                            {subs.map(sub => (
+                              <div key={sub.id} className="flex items-center gap-2 py-1">
+                                <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
+                                  {sub.completed
+                                    ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
+                                    : <RiCircleLine size={15} className="text-gray-300 hover:text-indigo-400 transition-colors" />
+                                  }
+                                </button>
+                                <span className={`text-sm leading-snug ${sub.completed ? 'line-through text-gray-400' : 'text-gray-600'}`}>
+                                  {sub.title}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )
               })}
