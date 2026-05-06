@@ -12,6 +12,7 @@ export function useProjects() {
       .from('projects')
       .select('*')
       .is('archived_at', null)
+      .is('completed_at', null)
       .order('name')
     setProjects(data ?? [])
     setLoading(false)
