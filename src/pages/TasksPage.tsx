@@ -61,20 +61,28 @@ export function TasksPage() {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [subtaskAdding, setSubtaskAdding] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('open')
-  const [priorityFilter, setPriorityFilter] = useState('')
-  const [projectFilter, setProjectFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(() => localStorage.getItem('tasks-status') ?? 'open')
+  const [priorityFilter, setPriorityFilter] = useState(() => localStorage.getItem('tasks-priority') ?? '')
+  const [projectFilter, setProjectFilter] = useState(() => localStorage.getItem('tasks-project') ?? '')
   const [groupBy, setGroupBy] = useState<'none' | 'project'>(
     () => (localStorage.getItem('tasks-groupby') as 'none' | 'project') ?? 'none'
   )
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [sort, setSort] = useState(() => localStorage.getItem('tasks-sort') ?? 'newest')
 
   const [view, setView] = useState<ViewMode>(
     () => (localStorage.getItem('tasks-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('tasks-view', v) }
   const handleGroupByChange = (v: 'none' | 'project') => { setGroupBy(v); localStorage.setItem('tasks-groupby', v) }
+
+  // Persist filter/sort state across navigations
+  useEffect(() => {
+    localStorage.setItem('tasks-status', statusFilter)
+    localStorage.setItem('tasks-priority', priorityFilter)
+    localStorage.setItem('tasks-project', projectFilter)
+    localStorage.setItem('tasks-sort', sort)
+  }, [statusFilter, priorityFilter, projectFilter, sort])
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const nameToId = useMemo(
