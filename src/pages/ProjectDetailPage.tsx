@@ -177,15 +177,15 @@ export function ProjectDetailPage() {
   const openTasks = tasks.filter(t => t.status !== 'done')
   const doneTasks = tasks.filter(t => t.status === 'done')
 
-  // Last-14-days slices for list sections
+  // Last-14-days slices for list sections, capped at 5 most recent
   const recentTasks = [
     ...openTasks,
     ...doneTasks.filter(t => (t.updated_at ?? t.created_at).slice(0, 10) >= twoWeeksAgo),
-  ]
-  const recentJournals = journals.filter(e => e.entry_date >= twoWeeksAgo)
+  ].slice(0, 5)
+  const recentJournals = journals.filter(e => e.entry_date >= twoWeeksAgo).slice(0, 5)
   const recentTranscripts = transcripts.filter(t =>
     ((t.meeting_date ?? t.created_at)).slice(0, 10) >= twoWeeksAgo
-  )
+  ).slice(0, 5)
 
   return (
     <div className="space-y-8">
