@@ -702,9 +702,10 @@ export function TasksPage() {
                                 className="overflow-hidden"
                               >
                                 <div className="px-4 pb-2 pt-0.5">
-                                  <div className="ml-6 pl-3 border-l-2 border-gray-200">
+                                  <div className="ml-6 border-l border-gray-200">
                                     {subs.map(sub => (
                                       <div key={sub.id} className="flex items-center gap-2 py-1">
+                                        <span className="w-3 h-px bg-gray-200 shrink-0" />
                                         <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                           {sub.completed
                                             ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
@@ -808,9 +809,10 @@ export function TasksPage() {
                           className="overflow-hidden"
                         >
                           <div className="px-4 pb-2 pt-0.5">
-                            <div className="ml-6 pl-3 border-l-2 border-gray-200">
+                            <div className="ml-6 border-l border-gray-200">
                               {subs.map(sub => (
                                 <div key={sub.id} className="flex items-center gap-2 py-1">
+                                  <span className="w-3 h-px bg-gray-200 shrink-0" />
                                   <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                     {sub.completed
                                       ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
