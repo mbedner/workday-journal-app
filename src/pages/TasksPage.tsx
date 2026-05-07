@@ -702,10 +702,13 @@ export function TasksPage() {
                                 className="overflow-hidden"
                               >
                                 <div className="px-4 pb-2 pt-0.5">
-                                  <div className="ml-6 border-l border-gray-200">
-                                    {subs.map(sub => (
+                                  <div className="ml-6">
+                                    {subs.map((sub, idx) => (
                                       <div key={sub.id} className="flex items-center gap-2 py-1">
-                                        <span className="w-3 h-px bg-gray-200 shrink-0" />
+                                        <div className="relative self-stretch shrink-0 w-3">
+                                          <div className={`absolute left-0 w-px bg-gray-200 ${idx === subs.length - 1 ? 'top-0 bottom-1/2' : 'inset-y-0'}`} />
+                                          <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-200" />
+                                        </div>
                                         <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                           {sub.completed
                                             ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
@@ -809,10 +812,13 @@ export function TasksPage() {
                           className="overflow-hidden"
                         >
                           <div className="px-4 pb-2 pt-0.5">
-                            <div className="ml-6 border-l border-gray-200">
-                              {subs.map(sub => (
+                            <div className="ml-6">
+                              {subs.map((sub, idx) => (
                                 <div key={sub.id} className="flex items-center gap-2 py-1">
-                                  <span className="w-3 h-px bg-gray-200 shrink-0" />
+                                  <div className="relative self-stretch shrink-0 w-3">
+                                    <div className={`absolute left-0 w-px bg-gray-200 ${idx === subs.length - 1 ? 'top-0 bottom-1/2' : 'inset-y-0'}`} />
+                                    <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-200" />
+                                  </div>
                                   <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                     {sub.completed
                                       ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
