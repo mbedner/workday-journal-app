@@ -62,6 +62,10 @@ export function TranscriptsListPage() {
     () => (localStorage.getItem('transcripts-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('transcripts-view', v) }
+  const [groupBy, setGroupBy] = useState<'none' | 'project'>(
+    () => (localStorage.getItem('transcripts-groupby') as 'none' | 'project') ?? 'none'
+  )
+  const handleGroupByChange = (v: 'none' | 'project') => { setGroupBy(v); localStorage.setItem('transcripts-groupby', v) }
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const nameToId = useMemo(
@@ -141,9 +145,32 @@ export function TranscriptsListPage() {
     )
   }), [transcripts, search, projectFilter, projectMap])
 
-  // Group by month only in list view without filters
+  // Group by project (list + grid)
+  const groupedByProject = useMemo(() => {
+    if (groupBy !== 'project' || view === 'calendar') return null
+    const groups = new Map<string, Transcript[]>()
+    for (const t of filtered) {
+      const projects = projectMap[t.id] ?? []
+      if (projects.length === 0) {
+        if (!groups.has('__none__')) groups.set('__none__', [])
+        groups.get('__none__')!.push(t)
+      } else {
+        for (const p of projects) {
+          if (!groups.has(p)) groups.set(p, [])
+          groups.get(p)!.push(t)
+        }
+      }
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === '__none__') return 1
+      if (b === '__none__') return -1
+      return a.localeCompare(b)
+    })
+  }, [filtered, projectMap, groupBy, view])
+
+  // Group by month only in list view without filters and no project grouping
   const grouped = useMemo(() => {
-    if (search || projectFilter || view === 'grid' || view === 'calendar') return null
+    if (search || projectFilter || view === 'grid' || view === 'calendar' || groupBy === 'project') return null
     const groups = new Map<string, Transcript[]>()
     // Track the best (most recent) effective date seen per group for sorting
     const groupDate = new Map<string, string>()
@@ -216,6 +243,40 @@ export function TranscriptsListPage() {
     )
   }
 
+  const GridCard = ({ t }: { t: Transcript }) => {
+    const tProjects = projectMap[t.id] ?? []
+    const dateLabel = t.meeting_date
+      ? (() => { try { return format(new Date(t.meeting_date + 'T12:00:00'), 'MMM d, yyyy') } catch { return t.meeting_date } })()
+      : null
+    return (
+      <Link
+        to={`/transcripts/${t.id}`}
+        className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm hover:border-indigo-200 transition-all"
+      >
+        <div>
+          <p className="text-sm font-semibold text-gray-900 line-clamp-2">{t.meeting_title}</p>
+          {(dateLabel || t.attendees) && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate">
+              {[dateLabel, t.attendees].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+        {(t.summary || t.raw_transcript) && (
+          <p className="text-xs text-gray-500 line-clamp-3 flex-1 leading-relaxed">
+            {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
+          </p>
+        )}
+        {tProjects.length > 0 && (
+          <div className="flex gap-1 flex-wrap mt-auto pt-1">
+            {tProjects.map(p => (
+              <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
+            ))}
+          </div>
+        )}
+      </Link>
+    )
+  }
+
   const subtitle = loading
     ? 'Loading…'
     : search || projectFilter
@@ -242,7 +303,7 @@ export function TranscriptsListPage() {
         </div>
         <FilterTrigger
           onClick={() => setFilterSheetOpen(true)}
-          activeCount={[projectFilter, sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
+          activeCount={[projectFilter, groupBy !== 'none' ? groupBy : '', sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
         />
       </div>
 
@@ -255,6 +316,10 @@ export function TranscriptsListPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
+        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-44">
+          <option value="none">No grouping</option>
+          <option value="project">Group by project</option>
+        </Select>
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-52">
           <option value="newest">Created: newest first</option>
           <option value="oldest">Created: oldest first</option>
@@ -267,7 +332,7 @@ export function TranscriptsListPage() {
       <FilterSheet
         open={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        activeCount={[projectFilter, sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
+        activeCount={[projectFilter, groupBy !== 'none' ? groupBy : '', sort !== 'date-desc' ? sort : ''].filter(Boolean).length}
       >
         {allProjects.length > 0 && (
           <FilterRow label="Project">
@@ -277,6 +342,12 @@ export function TranscriptsListPage() {
             </Select>
           </FilterRow>
         )}
+        <FilterRow label="Group by">
+          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-full">
+            <option value="none">No grouping</option>
+            <option value="project">Project</option>
+          </Select>
+        </FilterRow>
         <FilterRow label="Sort">
           <Select value={sort} onChange={e => setSort(e.target.value)} className="w-full">
             <option value="newest">Created: newest first</option>
@@ -308,42 +379,28 @@ export function TranscriptsListPage() {
         </>
       ) : view === 'grid' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map(t => {
-              const tProjects = projectMap[t.id] ?? []
-              const dateLabel = t.meeting_date
-                ? (() => { try { return format(new Date(t.meeting_date + 'T12:00:00'), 'MMM d, yyyy') } catch { return t.meeting_date } })()
-                : null
-              return (
-                <Link
-                  key={t.id}
-                  to={`/transcripts/${t.id}`}
-                  className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2 hover:shadow-sm hover:border-indigo-200 transition-all"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 line-clamp-2">{t.meeting_title}</p>
-                    {(dateLabel || t.attendees) && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">
-                        {[dateLabel, t.attendees].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                  {(t.summary || t.raw_transcript) && (
-                    <p className="text-xs text-gray-500 line-clamp-3 flex-1 leading-relaxed">
-                      {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
+          {groupedByProject ? (
+            <div className="space-y-6">
+              {groupedByProject.map(([group, items]) => (
+                <div key={group}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
+                      {group === '__none__' ? 'No project' : group}
                     </p>
-                  )}
-                  {tProjects.length > 0 && (
-                    <div className="flex gap-1 flex-wrap mt-auto pt-1">
-                      {tProjects.map(p => (
-                        <span key={p} className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{p}</span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-              )
-            })}
-          </div>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {items.map(t => <GridCard key={t.id} t={t} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filtered.map(t => <GridCard key={t.id} t={t} />)}
+            </div>
+          )}
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
@@ -351,6 +408,30 @@ export function TranscriptsListPage() {
             </div>
           )}
         </>
+      ) : groupedByProject ? (
+        /* Grouped list by project */
+        <div className="space-y-4">
+          {groupedByProject.map(([group, items]) => (
+            <div key={group}>
+              <div className="flex items-center gap-3 mb-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
+                  {group === '__none__' ? 'No project' : group}
+                </p>
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                {items.map(t => <TranscriptRow key={t.id} t={t} />)}
+              </div>
+            </div>
+          ))}
+          {canLoadMore && (
+            <div className="flex flex-col items-center gap-1 pt-2">
+              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
+              <p className="text-xs text-gray-400">{transcripts.length} of {totalCount} meetings loaded</p>
+            </div>
+          )}
+        </div>
       ) : grouped ? (
         /* Grouped list by month */
         <div className="space-y-6">
