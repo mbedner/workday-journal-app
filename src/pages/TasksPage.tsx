@@ -704,11 +704,12 @@ export function TasksPage() {
                                 <div className="px-4 pb-2 pt-0.5">
                                   <div className="ml-6">
                                     {subs.map((sub, idx) => (
-                                      <div key={sub.id} className="flex items-center gap-2 py-1">
-                                        <div className="relative self-stretch shrink-0 w-3">
-                                          <div className="absolute left-0 w-px bg-gray-200 top-0" style={{ bottom: idx === subs.length - 1 ? '50%' : 0 }} />
-                                          <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-200" />
+                                      <div key={sub.id} className="relative flex items-center gap-2 py-1">
+                                        <div className="absolute left-0 inset-y-0 w-3 pointer-events-none">
+                                          <div className="absolute left-0 w-px bg-gray-200" style={{ top: 0, bottom: idx === subs.length - 1 ? '50%' : 0 }} />
+                                          <div className="absolute left-0 right-0 h-px bg-gray-200 top-1/2" />
                                         </div>
+                                        <div className="w-3 shrink-0" />
                                         <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                           {sub.completed
                                             ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
@@ -814,11 +815,12 @@ export function TasksPage() {
                           <div className="px-4 pb-2 pt-0.5">
                             <div className="ml-6">
                               {subs.map((sub, idx) => (
-                                <div key={sub.id} className="flex items-center gap-2 py-1">
-                                  <div className="relative self-stretch shrink-0 w-3">
-                                    <div className={`absolute left-0 w-px bg-gray-200 ${idx === subs.length - 1 ? 'top-0 bottom-1/2' : 'inset-y-0'}`} />
-                                    <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-200" />
+                                <div key={sub.id} className="relative flex items-center gap-2 py-1">
+                                  <div className="absolute left-0 inset-y-0 w-3 pointer-events-none">
+                                    <div className="absolute left-0 w-px bg-gray-200" style={{ top: 0, bottom: idx === subs.length - 1 ? '50%' : 0 }} />
+                                    <div className="absolute left-0 right-0 h-px bg-gray-200 top-1/2" />
                                   </div>
+                                  <div className="w-3 shrink-0" />
                                   <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
                                     {sub.completed
                                       ? <RiCheckboxCircleLine size={15} className="text-indigo-400" />
