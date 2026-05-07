@@ -238,22 +238,20 @@ export function TranscriptDetailPage() {
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <button
-              onClick={() => navigate('/transcripts')}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1"
-            >
-              <RiArrowLeftLine size={13} /> All meeting notes
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
-            {(formattedDate || attendees.length > 0) && (
-              <p className="text-sm text-gray-400 mt-1">
-                {[formattedDate, attendees.join(', ')].filter(Boolean).join(' · ')}
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2 flex-wrap">
+        <div>
+          <button
+            onClick={() => navigate('/transcripts')}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition mb-1"
+          >
+            <RiArrowLeftLine size={13} /> All meeting notes
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
+          {(formattedDate || attendees.length > 0) && (
+            <p className="text-sm text-gray-400 mt-1">
+              {[formattedDate, attendees.join(', ')].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <div className="flex gap-2 flex-wrap mt-4">
             <Button variant="secondary" size="sm" onClick={() => setExtractModal(true)}>
               <RiSparklingLine size={14} className="mr-1" /> Extract actions
             </Button>
