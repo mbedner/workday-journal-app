@@ -706,7 +706,7 @@ export function TasksPage() {
                                     {subs.map((sub, idx) => (
                                       <div key={sub.id} className="flex items-center gap-2 py-1">
                                         <div className="relative self-stretch shrink-0 w-3">
-                                          <div className={`absolute left-0 w-px bg-gray-200 ${idx === subs.length - 1 ? 'top-0 bottom-1/2' : 'inset-y-0'}`} />
+                                          <div className="absolute left-0 w-px bg-gray-200 top-0" style={{ bottom: idx === subs.length - 1 ? '50%' : 0 }} />
                                           <div className="absolute left-0 right-0 top-1/2 h-px bg-gray-200" />
                                         </div>
                                         <button onClick={() => toggleSubtask(sub)} className="shrink-0 transition-colors">
