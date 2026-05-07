@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -39,6 +39,7 @@ type ProjectMap = Record<string, string[]>
 export function JournalListPage() {
   const navigate = useNavigate()
   const { projects: allProjects } = useProjects()
+  const [searchParams] = useSearchParams()
 
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -46,7 +47,7 @@ export function JournalListPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [ratingFilter, setRatingFilter] = useState('')
-  const [projectFilter, setProjectFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState(() => searchParams.get('project') ?? '')
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest')
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
   const [view, setView] = useState<ViewMode>(

@@ -10,7 +10,7 @@ import {
   RiFileList3Line,
   RiCheckboxLine,
 } from '@remixicon/react'
-import { format, parseISO, isToday, isPast } from 'date-fns'
+import { format, parseISO, isToday, isPast, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Project, Task, JournalEntry, Transcript } from '../types'
 import { Button } from '../components/ui/Button'
@@ -170,8 +170,22 @@ export function ProjectDetailPage() {
   )
   if (!project) return null
 
+  const twoWeeksAgo = subDays(new Date(), 14).toISOString().slice(0, 10)
+  const projectParam = encodeURIComponent(project.name)
+
+  // All-time counts for stat cards
   const openTasks = tasks.filter(t => t.status !== 'done')
   const doneTasks = tasks.filter(t => t.status === 'done')
+
+  // Last-14-days slices for list sections
+  const recentTasks = [
+    ...openTasks,
+    ...doneTasks.filter(t => (t.updated_at ?? t.created_at).slice(0, 10) >= twoWeeksAgo),
+  ]
+  const recentJournals = journals.filter(e => e.entry_date >= twoWeeksAgo)
+  const recentTranscripts = transcripts.filter(t =>
+    ((t.meeting_date ?? t.created_at)).slice(0, 10) >= twoWeeksAgo
+  )
 
   return (
     <div className="space-y-8">
@@ -211,7 +225,7 @@ export function ProjectDetailPage() {
               Tasks
               {openTasks.length > 0 && <span className="ml-2 text-xs font-normal text-gray-400 normal-case">{openTasks.length} open</span>}
             </h2>
-            <Link to="/tasks" className="text-xs text-indigo-600 hover:underline font-medium">View all tasks</Link>
+            <Link to={`/tasks?project=${projectParam}`} className="text-xs text-indigo-600 hover:underline font-medium">View all tasks</Link>
           </div>
 
           {tasks.length === 0 ? (
@@ -221,7 +235,12 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-              {[...openTasks, ...doneTasks].map(task => {
+              {recentTasks.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-gray-400">No activity in the last 14 days.</p>
+                  <Link to={`/tasks?project=${projectParam}`} className="text-xs text-indigo-500 hover:underline mt-1 inline-block">View all tasks</Link>
+                </div>
+              ) : recentTasks.map(task => {
                 const isDone = task.status === 'done'
                 const isToggling = toggling === task.id
                 const isOverdue = !isDone && task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date))
@@ -268,7 +287,7 @@ export function ProjectDetailPage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Journal Entries</h2>
-            <Link to="/journal" className="text-xs text-indigo-600 hover:underline font-medium">View all entries</Link>
+            <Link to={`/journal?project=${projectParam}`} className="text-xs text-indigo-600 hover:underline font-medium">View all entries</Link>
           </div>
 
           {journals.length === 0 ? (
@@ -277,7 +296,12 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-              {journals.map(entry => (
+              {recentJournals.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-gray-400">No entries in the last 14 days.</p>
+                  <Link to={`/journal?project=${projectParam}`} className="text-xs text-indigo-500 hover:underline mt-1 inline-block">View all entries</Link>
+                </div>
+              ) : recentJournals.map(entry => (
                 <Link
                   key={entry.id}
                   to={`/journal/${entry.entry_date}`}
@@ -312,10 +336,15 @@ export function ProjectDetailPage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Meeting Notes</h2>
-            <Link to="/transcripts" className="text-xs text-indigo-600 hover:underline font-medium">View all notes</Link>
+            <Link to={`/transcripts?project=${projectParam}`} className="text-xs text-indigo-600 hover:underline font-medium">View all notes</Link>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-            {transcripts.map(t => (
+            {recentTranscripts.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-sm text-gray-400">No meeting notes in the last 14 days.</p>
+                <Link to={`/transcripts?project=${projectParam}`} className="text-xs text-indigo-500 hover:underline mt-1 inline-block">View all notes</Link>
+              </div>
+            ) : recentTranscripts.map(t => (
               <Link
                 key={t.id}
                 to={`/transcripts/${t.id}`}

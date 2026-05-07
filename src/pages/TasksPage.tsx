@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine, RiArrowDownSLine } from '@remixicon/react'
 import { format, parseISO, isToday, isPast } from 'date-fns'
@@ -51,6 +51,7 @@ type ProjectMap = Record<string, string[]>
 export function TasksPage() {
   const { addToast } = useToast()
   const { projects: allProjects, create: createProject } = useProjects()
+  const [searchParams] = useSearchParams()
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -63,7 +64,7 @@ export function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState(() => localStorage.getItem('tasks-status') ?? 'open')
   const [priorityFilter, setPriorityFilter] = useState(() => localStorage.getItem('tasks-priority') ?? '')
-  const [projectFilter, setProjectFilter] = useState(() => localStorage.getItem('tasks-project') ?? '')
+  const [projectFilter, setProjectFilter] = useState(() => searchParams.get('project') ?? localStorage.getItem('tasks-project') ?? '')
   const [groupBy, setGroupBy] = useState<'none' | 'project'>(
     () => (localStorage.getItem('tasks-groupby') as 'none' | 'project') ?? 'none'
   )

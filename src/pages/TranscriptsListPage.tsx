@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -46,6 +46,7 @@ type ProjectMap = Record<string, string[]>
 
 export function TranscriptsListPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { projects: allProjects } = useProjects()
 
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
@@ -54,7 +55,7 @@ export function TranscriptsListPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('date-desc')
-  const [projectFilter, setProjectFilter] = useState('')
+  const [projectFilter, setProjectFilter] = useState(() => searchParams.get('project') ?? '')
   const [projectMap, setProjectMap] = useState<ProjectMap>({})
 
   const [view, setView] = useState<ViewMode>(
