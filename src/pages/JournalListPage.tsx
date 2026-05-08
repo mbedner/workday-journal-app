@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
-import { format } from 'date-fns'
+import { format, startOfWeek, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
 import { useProjects } from '../hooks/useProjects'
@@ -35,6 +35,25 @@ function stripMarkup(text: string): string {
 }
 
 type ProjectMap = Record<string, string[]>
+type GroupBy = 'none' | 'project' | 'week' | 'month'
+
+function groupDateLabel(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') {
+      const start = startOfWeek(d, { weekStartsOn: 1 })
+      return `Week of ${format(start, 'MMM d, yyyy')}`
+    }
+    return format(d, 'MMMM yyyy')
+  } catch { return 'Unknown' }
+}
+function groupDateSortKey(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') return format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return dateStr.slice(0, 7)
+  } catch { return '' }
+}
 
 export function JournalListPage() {
   const navigate = useNavigate()
@@ -54,6 +73,10 @@ export function JournalListPage() {
     () => (localStorage.getItem('journal-view') as ViewMode) ?? 'list'
   )
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
+  const [groupBy, setGroupBy] = useState<GroupBy>(
+    () => (localStorage.getItem('journal-groupby') as GroupBy) ?? 'none'
+  )
+  const handleGroupByChange = (v: GroupBy) => { setGroupBy(v); localStorage.setItem('journal-groupby', v) }
 
   const today = format(new Date(), 'yyyy-MM-dd')
 
@@ -126,16 +149,42 @@ export function JournalListPage() {
 
   const canLoadMore = hasMore && !search && !projectFilter
 
-  const grouped = useMemo(() => {
-    if (search || ratingFilter || projectFilter || view === 'grid' || view === 'calendar') return null
+  const groupedItems = useMemo((): [string, JournalEntry[]][] | null => {
+    if (groupBy === 'none' || view === 'calendar') return null
     const groups = new Map<string, JournalEntry[]>()
-    for (const entry of filtered) {
-      const key = format(new Date(entry.entry_date + 'T12:00:00'), 'MMMM yyyy')
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(entry)
+    const groupSortKey = new Map<string, string>()
+    if (groupBy === 'project') {
+      for (const entry of filtered) {
+        const projects = projectMap[entry.id] ?? []
+        if (projects.length === 0) {
+          if (!groups.has('__none__')) groups.set('__none__', [])
+          groups.get('__none__')!.push(entry)
+        } else {
+          for (const p of projects) {
+            if (!groups.has(p)) groups.set(p, [])
+            groups.get(p)!.push(entry)
+          }
+        }
+      }
+      return Array.from(groups.entries()).sort(([a], [b]) => {
+        if (a === '__none__') return 1
+        if (b === '__none__') return -1
+        return a.localeCompare(b)
+      })
     }
-    return Array.from(groups.entries())
-  }, [filtered, search, ratingFilter, projectFilter, view])
+    for (const entry of filtered) {
+      const label = groupDateLabel(entry.entry_date, groupBy)
+      const sortKey = groupDateSortKey(entry.entry_date, groupBy)
+      if (!groups.has(label)) groups.set(label, [])
+      groups.get(label)!.push(entry)
+      if (!groupSortKey.has(label) || sortKey > groupSortKey.get(label)!) groupSortKey.set(label, sortKey)
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) =>
+      (groupSortKey.get(b) ?? '').localeCompare(groupSortKey.get(a) ?? '')
+    )
+  }, [filtered, projectMap, groupBy, view]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayLabel = (label: string) => label === '__none__' ? 'No project' : label
 
   const calendarItems: CalendarItem[] = useMemo(() => filtered.map(e => ({
     id: e.id,
@@ -257,7 +306,7 @@ export function JournalListPage() {
         </div>
         <FilterTrigger
           onClick={() => setFilterSheetOpen(true)}
-          activeCount={[projectFilter, ratingFilter, sort !== 'newest' ? sort : ''].filter(Boolean).length}
+          activeCount={[projectFilter, ratingFilter, groupBy !== 'none' ? groupBy : '', sort !== 'newest' ? sort : ''].filter(Boolean).length}
         />
       </div>
 
@@ -275,6 +324,12 @@ export function JournalListPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
+        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-40">
+          <option value="none">No grouping</option>
+          <option value="project">Group by project</option>
+          <option value="week">Group by week</option>
+          <option value="month">Group by month</option>
+        </Select>
         <Select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)} className="w-36">
           <option value="">All ratings</option>
           {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} stars</option>)}
@@ -291,7 +346,7 @@ export function JournalListPage() {
       <FilterSheet
         open={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        activeCount={[projectFilter, ratingFilter, sort !== 'newest' ? sort : ''].filter(Boolean).length}
+        activeCount={[projectFilter, ratingFilter, groupBy !== 'none' ? groupBy : '', sort !== 'newest' ? sort : ''].filter(Boolean).length}
       >
         {allProjects.length > 0 && (
           <FilterRow label="Project">
@@ -301,6 +356,14 @@ export function JournalListPage() {
             </Select>
           </FilterRow>
         )}
+        <FilterRow label="Group by">
+          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-full">
+            <option value="none">No grouping</option>
+            <option value="project">Group by project</option>
+            <option value="week">Group by week</option>
+            <option value="month">Group by month</option>
+          </Select>
+        </FilterRow>
         <FilterRow label="Rating">
           <Select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)} className="w-full">
             <option value="">All ratings</option>
@@ -341,17 +404,18 @@ export function JournalListPage() {
             </div>
           )}
         </>
-      ) : grouped ? (
-        /* Grouped list by month */
-        <div className="space-y-6">
-          {grouped.map(([monthLabel, monthEntries]) => (
-            <div key={monthLabel}>
+      ) : groupedItems ? (
+        /* Grouped list */
+        <div className="space-y-4">
+          {groupedItems.map(([label, entries]) => (
+            <div key={label}>
               <div className="flex items-center gap-3 mb-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{monthLabel}</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{displayLabel(label)}</p>
                 <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-300 shrink-0">{entries.length}</span>
               </div>
               <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-                {monthEntries.map(entry => <EntryRow key={entry.id} entry={entry} />)}
+                {entries.map(entry => <EntryRow key={entry.id} entry={entry} />)}
               </div>
             </div>
           ))}

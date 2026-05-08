@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { RiArrowRightSLine } from '@remixicon/react'
-import { format } from 'date-fns'
+import { format, startOfWeek, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Transcript } from '../types'
 import { useProjects } from '../hooks/useProjects'
@@ -34,15 +34,27 @@ function stripMarkup(text: string): string {
     .trim()
 }
 
-/** Return the display month label for a transcript, falling back to created_at */
-function monthLabel(t: Transcript): string {
-  const dateStr = t.meeting_date ?? t.created_at?.slice(0, 10)
-  if (!dateStr) return 'Unknown'
-  try { return format(new Date(dateStr + 'T12:00:00'), 'MMMM yyyy') } catch { return 'Unknown' }
-}
-
 // transcriptId → [project names]
 type ProjectMap = Record<string, string[]>
+type GroupBy = 'none' | 'project' | 'week' | 'month'
+
+function groupDateLabel(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') {
+      const start = startOfWeek(d, { weekStartsOn: 1 })
+      return `Week of ${format(start, 'MMM d, yyyy')}`
+    }
+    return format(d, 'MMMM yyyy')
+  } catch { return 'Unknown' }
+}
+function groupDateSortKey(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') return format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return dateStr.slice(0, 7)
+  } catch { return '' }
+}
 
 export function TranscriptsListPage() {
   const navigate = useNavigate()
@@ -62,10 +74,10 @@ export function TranscriptsListPage() {
     () => (localStorage.getItem('transcripts-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('transcripts-view', v) }
-  const [groupBy, setGroupBy] = useState<'none' | 'project'>(
-    () => (localStorage.getItem('transcripts-groupby') as 'none' | 'project') ?? 'none'
+  const [groupBy, setGroupBy] = useState<GroupBy>(
+    () => (localStorage.getItem('transcripts-groupby') as GroupBy) ?? 'month'
   )
-  const handleGroupByChange = (v: 'none' | 'project') => { setGroupBy(v); localStorage.setItem('transcripts-groupby', v) }
+  const handleGroupByChange = (v: GroupBy) => { setGroupBy(v); localStorage.setItem('transcripts-groupby', v) }
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
   const nameToId = useMemo(
@@ -145,50 +157,46 @@ export function TranscriptsListPage() {
     )
   }), [transcripts, search, projectFilter, projectMap])
 
-  // Group by project (list + grid)
-  const groupedByProject = useMemo(() => {
-    if (groupBy !== 'project' || view === 'calendar') return null
+  // Unified groupedItems — groups by project, week, or month
+  const groupedItems = useMemo((): [string, Transcript[]][] | null => {
+    if (groupBy === 'none' || view === 'calendar') return null
     const groups = new Map<string, Transcript[]>()
-    for (const t of filtered) {
-      const projects = projectMap[t.id] ?? []
-      if (projects.length === 0) {
-        if (!groups.has('__none__')) groups.set('__none__', [])
-        groups.get('__none__')!.push(t)
-      } else {
-        for (const p of projects) {
-          if (!groups.has(p)) groups.set(p, [])
-          groups.get(p)!.push(t)
+    const groupSortKey = new Map<string, string>()
+    if (groupBy === 'project') {
+      for (const t of filtered) {
+        const projects = projectMap[t.id] ?? []
+        if (projects.length === 0) {
+          if (!groups.has('__none__')) groups.set('__none__', [])
+          groups.get('__none__')!.push(t)
+        } else {
+          for (const p of projects) {
+            if (!groups.has(p)) groups.set(p, [])
+            groups.get(p)!.push(t)
+          }
         }
       }
+      return Array.from(groups.entries()).sort(([a], [b]) => {
+        if (a === '__none__') return 1
+        if (b === '__none__') return -1
+        return a.localeCompare(b)
+      })
     }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === '__none__') return 1
-      if (b === '__none__') return -1
-      return a.localeCompare(b)
-    })
-  }, [filtered, projectMap, groupBy, view])
-
-  // Group by month only in list view without filters and no project grouping
-  const grouped = useMemo(() => {
-    if (search || projectFilter || view === 'grid' || view === 'calendar' || groupBy === 'project') return null
-    const groups = new Map<string, Transcript[]>()
-    // Track the best (most recent) effective date seen per group for sorting
-    const groupDate = new Map<string, string>()
+    // week or month
     for (const t of filtered) {
-      const key = monthLabel(t)
-      const effectiveDate = t.meeting_date ?? t.created_at?.slice(0, 10) ?? ''
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(t)
-      // Keep the most recent effective date for this group
-      if (!groupDate.has(key) || effectiveDate > groupDate.get(key)!) {
-        groupDate.set(key, effectiveDate)
-      }
+      const dateStr = (t.meeting_date ?? t.created_at?.slice(0, 10)) ?? ''
+      if (!dateStr) continue
+      const label = groupDateLabel(dateStr, groupBy as 'week' | 'month')
+      const sortKey = groupDateSortKey(dateStr, groupBy as 'week' | 'month')
+      if (!groups.has(label)) groups.set(label, [])
+      groups.get(label)!.push(t)
+      if (!groupSortKey.has(label) || sortKey > groupSortKey.get(label)!) groupSortKey.set(label, sortKey)
     }
-    // Sort groups by their most recent effective date, descending
     return Array.from(groups.entries()).sort(([a], [b]) =>
-      (groupDate.get(b) ?? '').localeCompare(groupDate.get(a) ?? '')
+      (groupSortKey.get(b) ?? '').localeCompare(groupSortKey.get(a) ?? '')
     )
-  }, [filtered, search, projectFilter, view])
+  }, [filtered, projectMap, groupBy, view]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayLabel = (label: string) => label === '__none__' ? 'No project' : label
 
   const calendarItems: CalendarItem[] = useMemo(() => filtered
     .filter(t => t.meeting_date)
@@ -316,9 +324,11 @@ export function TranscriptsListPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
-        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-44">
+        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-44">
           <option value="none">No grouping</option>
           <option value="project">Group by project</option>
+          <option value="week">Group by week</option>
+          <option value="month">Group by month</option>
         </Select>
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-52">
           <option value="newest">Created: newest first</option>
@@ -343,9 +353,11 @@ export function TranscriptsListPage() {
           </FilterRow>
         )}
         <FilterRow label="Group by">
-          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-full">
+          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-full">
             <option value="none">No grouping</option>
-            <option value="project">Project</option>
+            <option value="project">Group by project</option>
+            <option value="week">Group by week</option>
+            <option value="month">Group by month</option>
           </Select>
         </FilterRow>
         <FilterRow label="Sort">
@@ -379,13 +391,13 @@ export function TranscriptsListPage() {
         </>
       ) : view === 'grid' ? (
         <>
-          {groupedByProject ? (
+          {groupedItems ? (
             <div className="space-y-6">
-              {groupedByProject.map(([group, items]) => (
+              {groupedItems.map(([group, items]) => (
                 <div key={group}>
                   <div className="flex items-center gap-3 mb-3">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
-                      {group === '__none__' ? 'No project' : group}
+                      {displayLabel(group)}
                     </p>
                     <div className="flex-1 h-px bg-gray-200" />
                     <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
@@ -408,38 +420,15 @@ export function TranscriptsListPage() {
             </div>
           )}
         </>
-      ) : groupedByProject ? (
-        /* Grouped list by project */
+      ) : groupedItems ? (
+        /* Grouped list */
         <div className="space-y-4">
-          {groupedByProject.map(([group, items]) => (
-            <div key={group}>
-              <div className="flex items-center gap-3 mb-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
-                  {group === '__none__' ? 'No project' : group}
-                </p>
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-                {items.map(t => <TranscriptRow key={t.id} t={t} />)}
-              </div>
-            </div>
-          ))}
-          {canLoadMore && (
-            <div className="flex flex-col items-center gap-1 pt-2">
-              <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
-              <p className="text-xs text-gray-400">{transcripts.length} of {totalCount} meetings loaded</p>
-            </div>
-          )}
-        </div>
-      ) : grouped ? (
-        /* Grouped list by month */
-        <div className="space-y-6">
-          {grouped.map(([label, items]) => (
+          {groupedItems.map(([label, items]) => (
             <div key={label}>
               <div className="flex items-center gap-3 mb-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{label}</p>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{displayLabel(label)}</p>
                 <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
               </div>
               <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
                 {items.map(t => <TranscriptRow key={t.id} t={t} />)}

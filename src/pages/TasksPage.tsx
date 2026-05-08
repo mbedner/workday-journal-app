@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RiPencilLine, RiDeleteBinLine, RiCheckboxCircleLine, RiCircleLine, RiCloseLine, RiAddLine, RiArrowDownSLine } from '@remixicon/react'
-import { format, parseISO, isToday, isPast } from 'date-fns'
+import { format, parseISO, isToday, isPast, startOfWeek } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Task, Subtask } from '../types'
 import { Button } from '../components/ui/Button'
@@ -23,6 +23,25 @@ import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 
 type Status = Task['status']
 type Priority = Task['priority']
+type GroupBy = 'none' | 'project' | 'week' | 'month'
+
+function groupDateLabel(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') {
+      const start = startOfWeek(d, { weekStartsOn: 1 })
+      return `Week of ${format(start, 'MMM d, yyyy')}`
+    }
+    return format(d, 'MMMM yyyy')
+  } catch { return 'Unknown' }
+}
+function groupDateSortKey(dateStr: string, mode: 'week' | 'month'): string {
+  try {
+    const d = parseISO(dateStr)
+    if (mode === 'week') return format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return dateStr.slice(0, 7)
+  } catch { return '' }
+}
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -65,8 +84,8 @@ export function TasksPage() {
   const [statusFilter, setStatusFilter] = useState(() => localStorage.getItem('tasks-status') ?? 'open')
   const [priorityFilter, setPriorityFilter] = useState(() => localStorage.getItem('tasks-priority') ?? '')
   const [projectFilter, setProjectFilter] = useState(() => searchParams.get('project') ?? localStorage.getItem('tasks-project') ?? '')
-  const [groupBy, setGroupBy] = useState<'none' | 'project'>(
-    () => (localStorage.getItem('tasks-groupby') as 'none' | 'project') ?? 'none'
+  const [groupBy, setGroupBy] = useState<GroupBy>(
+    () => (localStorage.getItem('tasks-groupby') as GroupBy) ?? 'none'
   )
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState(() => localStorage.getItem('tasks-sort') ?? 'newest')
@@ -75,7 +94,7 @@ export function TasksPage() {
     () => (localStorage.getItem('tasks-view') as ViewMode) ?? 'list'
   )
   const handleViewChange = (v: ViewMode) => { setView(v); localStorage.setItem('tasks-view', v) }
-  const handleGroupByChange = (v: 'none' | 'project') => { setGroupBy(v); localStorage.setItem('tasks-groupby', v) }
+  const handleGroupByChange = (v: GroupBy) => { setGroupBy(v); localStorage.setItem('tasks-groupby', v) }
 
   // Persist filter/sort state across navigations
   useEffect(() => {
@@ -324,29 +343,44 @@ export function TasksPage() {
   // Load more is only valid when no client-side-only filters are active
   const canLoadMore = hasMoreTasks && !search && !projectFilter
 
-  // Group by project — tasks in multiple projects appear in each group
-  const groupedByProject = useMemo(() => {
-    if (groupBy !== 'project' || view === 'calendar') return null
+  // Unified groupedItems — groups by project, week, or month
+  const groupedItems = useMemo((): [string, Task[]][] | null => {
+    if (groupBy === 'none' || view === 'calendar') return null
     const groups = new Map<string, Task[]>()
-    for (const task of filtered) {
-      const projects = projectMap[task.id] ?? []
-      if (projects.length === 0) {
-        if (!groups.has('__none__')) groups.set('__none__', [])
-        groups.get('__none__')!.push(task)
-      } else {
-        for (const p of projects) {
-          if (!groups.has(p)) groups.set(p, [])
-          groups.get(p)!.push(task)
+    const groupSortKey = new Map<string, string>()
+    if (groupBy === 'project') {
+      for (const task of filtered) {
+        const projects = projectMap[task.id] ?? []
+        if (projects.length === 0) {
+          if (!groups.has('__none__')) groups.set('__none__', [])
+          groups.get('__none__')!.push(task)
+        } else {
+          for (const p of projects) {
+            if (!groups.has(p)) groups.set(p, [])
+            groups.get(p)!.push(task)
+          }
         }
       }
+      return Array.from(groups.entries()).sort(([a], [b]) => {
+        if (a === '__none__') return 1
+        if (b === '__none__') return -1
+        return a.localeCompare(b)
+      })
     }
-    // Named projects alphabetically, "No project" last
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === '__none__') return 1
-      if (b === '__none__') return -1
-      return a.localeCompare(b)
-    })
+    for (const task of filtered) {
+      const dateStr = task.created_at.slice(0, 10)
+      const label = groupDateLabel(dateStr, groupBy)
+      const sortKey = groupDateSortKey(dateStr, groupBy)
+      if (!groups.has(label)) groups.set(label, [])
+      groups.get(label)!.push(task)
+      if (!groupSortKey.has(label) || sortKey > groupSortKey.get(label)!) groupSortKey.set(label, sortKey)
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) =>
+      (groupSortKey.get(b) ?? '').localeCompare(groupSortKey.get(a) ?? '')
+    )
   }, [filtered, projectMap, groupBy, view]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayLabel = (label: string) => label === '__none__' ? 'No project' : label
 
   const calendarItems: CalendarItem[] = useMemo(() => filtered
     .filter(t => t.due_date)
@@ -417,9 +451,11 @@ export function TasksPage() {
             {allProjects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </Select>
         )}
-        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-40">
+        <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-40">
           <option value="none">No grouping</option>
           <option value="project">Group by project</option>
+          <option value="week">Group by week</option>
+          <option value="month">Group by month</option>
         </Select>
         <Select value={sort} onChange={e => setSort(e.target.value)} className="w-32">
           <option value="newest">Newest</option>
@@ -468,9 +504,11 @@ export function TasksPage() {
           </FilterRow>
         )}
         <FilterRow label="Group by">
-          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as 'none' | 'project')} className="w-full">
+          <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-full">
             <option value="none">No grouping</option>
-            <option value="project">Project</option>
+            <option value="project">Group by project</option>
+            <option value="week">Group by week</option>
+            <option value="month">Group by month</option>
           </Select>
         </FilterRow>
         <FilterRow label="Sort">
@@ -504,13 +542,13 @@ export function TasksPage() {
         </>
       ) : view === 'grid' ? (
         <>
-          {groupedByProject ? (
+          {groupedItems ? (
             <div className="space-y-6">
-              {groupedByProject.map(([group, groupTasks]) => (
+              {groupedItems.map(([group, groupTasks]) => (
                 <div key={group}>
                   <div className="flex items-center gap-3 mb-3">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
-                      {group === '__none__' ? 'No project' : group}
+                      {displayLabel(group)}
                     </p>
                     <div className="flex-1 h-px bg-gray-200" />
                     <span className="text-xs text-gray-300 shrink-0">{groupTasks.length}</span>
@@ -628,13 +666,13 @@ export function TasksPage() {
       ) : (
         /* List view */
         <>
-          {groupedByProject ? (
+          {groupedItems ? (
             <div className="space-y-4">
-              {groupedByProject.map(([group, groupTasks]) => (
+              {groupedItems.map(([group, groupTasks]) => (
                 <div key={group}>
                   <div className="flex items-center gap-3 mb-2">
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">
-                      {group === '__none__' ? 'No project' : group}
+                      {displayLabel(group)}
                     </p>
                     <div className="flex-1 h-px bg-gray-200" />
                     <span className="text-xs text-gray-300 shrink-0">{groupTasks.length}</span>
