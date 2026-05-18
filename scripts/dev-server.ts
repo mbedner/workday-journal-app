@@ -33,15 +33,15 @@ const ROUTES: Record<string, string> = {
   // Extension endpoints (POST)
   '/api/extension/capture':    '../api/extension/capture.ts',
   '/api/extension/metadata':   '../api/extension/metadata.ts',
-  // GPT connector endpoints (GET / POST)
-  '/api/gpt/health':           '../api/gpt/health.ts',
-  '/api/gpt/journal-entries':  '../api/gpt/journal-entries.ts',
-  '/api/gpt/tasks':            '../api/gpt/tasks.ts',
-  '/api/gpt/meeting-notes':    '../api/gpt/meeting-notes.ts',
-  '/api/gpt/weekly-summary':   '../api/gpt/weekly-summary.ts',
-  '/api/gpt/projects':         '../api/gpt/projects.ts',
-  '/api/gpt/search':           '../api/gpt/search.ts',
-  '/api/gpt/reflections':      '../api/gpt/reflections.ts',
+  // GPT connector endpoints (GET / POST) — routed directly to _ prefixed handlers
+  '/api/gpt/health':           '../api/gpt/_health.ts',
+  '/api/gpt/journal-entries':  '../api/gpt/_journal-entries.ts',
+  '/api/gpt/tasks':            '../api/gpt/_tasks.ts',
+  '/api/gpt/meeting-notes':    '../api/gpt/_meeting-notes.ts',
+  '/api/gpt/weekly-summary':   '../api/gpt/_weekly-summary.ts',
+  '/api/gpt/projects':         '../api/gpt/_projects.ts',
+  '/api/gpt/search':           '../api/gpt/_search.ts',
+  '/api/gpt/reflections':      '../api/gpt/_reflections.ts',
 }
 
 /** Parse query string into an object (same shape as VercelRequest.query) */
