@@ -45,7 +45,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json(err('INVALID_DATE_RANGE', 'startDate must be before endDate'))
 
   const enc = (s: string) => encodeURIComponent(s)
-  const ilike = (field: string) => `${field}=ilike.*${enc(needle)}*`
 
   try {
     const client = db()
