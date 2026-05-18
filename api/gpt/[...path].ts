@@ -117,8 +117,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   setCors(res)
   if (req.method === 'OPTIONS') { res.status(200).end(); return }
 
-  const pathParam = req.query.path
-  const segment   = Array.isArray(pathParam) ? pathParam[0] : (pathParam ?? '')
+  // Parse the route segment directly from the URL — more reliable than
+  // req.query.path which can be unpopulated depending on Vercel's catch-all handling.
+  // URL shape: /api/gpt/<segment>[?queryParams]
+  const pathname = (req.url ?? '/').split('?')[0]          // '/api/gpt/health'
+  const parts    = pathname.split('/').filter(Boolean)      // ['api', 'gpt', 'health']
+  const segment  = parts[2] ?? ''                           // 'health'
 
   const routes: Record<string, Handler> = {
     'health':          handleHealth,
