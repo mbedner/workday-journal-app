@@ -1,0 +1,485 @@
+openapi: 3.1.0
+info:
+  title: Workday Journal GPT Connector
+  version: 1.0.0
+  description: >
+    Read-only (and optional write) API connector that lets a Custom GPT retrieve
+    journal entries, tasks, meeting notes, projects, and weekly summaries from the
+    Workday Journal app. Used by the "Operator" leadership and management consultant GPT.
+
+servers:
+  - url: https://YOUR-DOMAIN.vercel.app
+    description: Production (replace with your actual Vercel domain)
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Bearer token generated in the Workday Journal app settings (Settings → API Token).
+        Include as: Authorization: Bearer <token>
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:    { type: string }
+            message: { type: string }
+
+    JournalEntry:
+      type: object
+      properties:
+        id:                { type: string }
+        date:              { type: string, format: date }
+        focus:             { type: string, nullable: true }
+        accomplished:      { type: string, nullable: true }
+        needsAttention:    { type: string, nullable: true }
+        reflection:        { type: string, nullable: true }
+        productivityRating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+        projects:
+          type: array
+          items: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Task:
+      type: object
+      properties:
+        id:          { type: string }
+        title:       { type: string }
+        description: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [open, in_progress, completed, blocked]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        project:   { type: string, nullable: true }
+        projects:
+          type: array
+          items: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        dueDate:     { type: string, format: date, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }
+
+    ActionItem:
+      type: object
+      properties:
+        owner:   { type: string }
+        task:    { type: string }
+        dueDate: { type: string, nullable: true }
+
+    Meeting:
+      type: object
+      properties:
+        id:    { type: string }
+        date:  { type: string, format: date }
+        title: { type: string }
+        attendees:
+          type: array
+          items: { type: string }
+        projects:
+          type: array
+          items: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        summary:   { type: string, nullable: true }
+        decisions:
+          type: array
+          items: { type: string }
+        actionItems:
+          type: array
+          items: { $ref: '#/components/schemas/ActionItem' }
+        followUps: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Project:
+      type: object
+      properties:
+        id:   { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [active, completed]
+        description: { type: string, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }
+
+    ProjectActivity:
+      type: object
+      properties:
+        name: { type: string }
+        activityLevel:
+          type: string
+          enum: [low, medium, high]
+        touchpoints:
+          type: object
+          properties:
+            entries:  { type: integer }
+            tasks:    { type: integer }
+            meetings: { type: integer }
+
+    WeeklySummary:
+      type: object
+      properties:
+        startDate:           { type: string, format: date }
+        endDate:             { type: string, format: date }
+        summary:             { type: string }
+        completedTasksCount: { type: integer }
+        openTasksCount:      { type: integer }
+        blockedTasksCount:   { type: integer }
+        meetingsCount:       { type: integer }
+        journalEntriesCount: { type: integer }
+        projects:
+          type: array
+          items: { $ref: '#/components/schemas/ProjectActivity' }
+        themes:
+          type: array
+          items: { type: string }
+        blockers:
+          type: array
+          items: { type: string }
+        notableWins:
+          type: array
+          items: { type: string }
+
+    SearchResult:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [entry, task, meeting]
+        id:      { type: string }
+        date:    { type: string, format: date }
+        title:   { type: string }
+        snippet: { type: string }
+        projects:
+          type: array
+          items: { type: string }
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+
+  /api/gpt/health:
+    get:
+      operationId: getHealth
+      summary: Check API health
+      description: Confirm the connector is reachable. Does not require authentication.
+      security: []
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:  { type: string, example: ok }
+                  app:     { type: string, example: workday-journal }
+                  version: { type: string, example: 1.0.0 }
+
+  /api/gpt/journal-entries:
+    get:
+      operationId: getJournalEntries
+      summary: Get journal entries
+      description: >
+        Returns journal entries within an optional date range. Each entry contains
+        the user's focus for the day, what they accomplished, what still needs attention,
+        and a reflection. Useful for leadership pattern analysis and weekly reviews.
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter entries on or after this date (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter entries on or before this date (YYYY-MM-DD)
+        - name: project
+          in: query
+          schema: { type: string }
+          description: Filter by project name (substring match)
+        - name: tag
+          in: query
+          schema: { type: string }
+          description: Filter by tag name (exact match)
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: List of journal entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/JournalEntry' }
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/tasks:
+    get:
+      operationId: getTasks
+      summary: Get tasks
+      description: >
+        Returns tasks filtered by status, date range, and/or project. Useful for
+        understanding workload, completed work, and blocked items.
+        Status mapping: open=todo, in_progress=in_progress, completed=done, blocked=blocked.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, completed, blocked]
+          description: Filter by task status
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter by created_at (or completed_at if status=completed) on or after this date
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter by created_at (or completed_at if status=completed) on or before this date
+        - name: project
+          in: query
+          schema: { type: string }
+          description: Filter by project name (substring match)
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100, maximum: 250 }
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/meeting-notes:
+    get:
+      operationId: getMeetingNotes
+      summary: Get meeting notes
+      description: >
+        Returns meeting notes (transcripts) within an optional date range. Includes
+        attendees, decisions, action items, and follow-ups. Useful for stakeholder
+        analysis and identifying recurring themes or risks.
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter meetings on or after this date (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: Filter meetings on or before this date (YYYY-MM-DD)
+        - name: attendee
+          in: query
+          schema: { type: string }
+          description: Filter by attendee name (substring match)
+        - name: project
+          in: query
+          schema: { type: string }
+          description: Filter by project name (substring match)
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: List of meeting notes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meetings:
+                    type: array
+                    items: { $ref: '#/components/schemas/Meeting' }
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/weekly-summary:
+    get:
+      operationId: getWeeklySummary
+      summary: Get a synthesized weekly work summary
+      description: >
+        Returns an aggregated summary of work activity for a date range, including
+        task counts, project activity levels, recurring themes (from tags), blockers,
+        and notable wins. This is the primary endpoint for leadership coaching analysis.
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: Start of the period (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: End of the period (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Weekly work summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeeklySummary' }
+        "400": { description: Invalid or missing parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/projects:
+    get:
+      operationId: getProjects
+      summary: Get active projects
+      description: >
+        Returns projects with their status. By default returns only active projects.
+        Use status=all to include completed projects.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, all]
+            default: active
+          description: Filter by project status
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items: { $ref: '#/components/schemas/Project' }
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/search:
+    get:
+      operationId: searchJournal
+      summary: Search across journal data
+      description: >
+        Full-text search across journal entries, tasks, and meeting notes.
+        Returns ranked results with snippets showing where the query matched.
+        Use types to narrow the search to specific data sources.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+          description: Search query string
+        - name: types
+          in: query
+          schema: { type: string }
+          description: "Comma-separated data types to search: entries, tasks, meetings (default: all)"
+          example: entries,tasks
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+          description: Only search within entries on or after this date
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+          description: Only search within entries on or before this date
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/SearchResult' }
+                  total:
+                    type: integer
+                    description: Total results found before limit was applied
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/gpt/reflections:
+    post:
+      operationId: saveReflection
+      summary: Save a GPT-generated reflection
+      description: >
+        Save a leadership reflection generated by the GPT back to the journal.
+        The reflection is written into the journal entry for the given date.
+        If an entry already exists for that date, the reflection is appended rather
+        than overwritten. Only call this when the user explicitly asks to save something.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, body]
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: Date to save the reflection for (YYYY-MM-DD)
+                title:
+                  type: string
+                  description: Optional title for the reflection
+                body:
+                  type: string
+                  description: The reflection text to save
+                source:
+                  type: string
+                  description: Source identifier (e.g. "operator-gpt")
+                  example: operator-gpt
+      responses:
+        "201":
+          description: Reflection saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:     { type: string }
+                  status:
+                    type: string
+                    enum: [created, appended]
+                  date:   { type: string, format: date }
+        "400": { description: Invalid parameters, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        "500": { description: Server error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
