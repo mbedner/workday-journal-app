@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { RiArrowRightSLine } from '@remixicon/react'
+import { RiArrowRightSLine, RiCalendarLine } from '@remixicon/react'
 import { format, startOfWeek, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry } from '../types'
@@ -79,6 +79,7 @@ export function JournalListPage() {
   const handleGroupByChange = (v: GroupBy) => { setGroupBy(v); localStorage.setItem('journal-groupby', v) }
 
   const today = format(new Date(), 'yyyy-MM-dd')
+  const pastDateInputRef = useRef<HTMLInputElement>(null)
 
   const handleViewChange = (v: ViewMode) => {
     setView(v)
@@ -288,6 +289,27 @@ export function JournalListPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <ViewToggle value={view} onChange={handleViewChange} />
+          {/* Hidden date input — triggered by the Past entry button */}
+          <input
+            ref={pastDateInputRef}
+            type="date"
+            max={today}
+            className="sr-only"
+            onChange={e => {
+              if (e.target.value) {
+                navigate(`/journal/${e.target.value}`)
+                e.target.value = ''
+              }
+            }}
+          />
+          <Button
+            variant="secondary"
+            onClick={() => pastDateInputRef.current?.showPicker?.() ?? pastDateInputRef.current?.click()}
+            title="Open or create an entry for a past date"
+          >
+            <RiCalendarLine className="w-4 h-4" />
+            Past entry
+          </Button>
           <Button onClick={() => navigate(`/journal/${today}`)}>
             {entries.some(e => e.entry_date === today) ? "Open today's entry" : "Start today's entry"}
           </Button>
