@@ -289,27 +289,29 @@ export function JournalListPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <ViewToggle value={view} onChange={handleViewChange} />
-          {/* Hidden date input — triggered by the Past entry button */}
-          <input
-            ref={pastDateInputRef}
-            type="date"
-            max={today}
-            className="sr-only"
-            onChange={e => {
-              if (e.target.value) {
-                navigate(`/journal/${e.target.value}`)
-                e.target.value = ''
-              }
-            }}
-          />
-          <Button
-            variant="secondary"
-            onClick={() => pastDateInputRef.current?.showPicker?.() ?? pastDateInputRef.current?.click()}
-            title="Open or create an entry for a past date"
-          >
-            <RiCalendarLine className="w-4 h-4" />
-            Past entry
-          </Button>
+          {/* Desktop-only: hidden date input triggered by button (showPicker not supported on mobile Safari) */}
+          <div className="hidden sm:contents">
+            <input
+              ref={pastDateInputRef}
+              type="date"
+              max={today}
+              className="sr-only"
+              onChange={e => {
+                if (e.target.value) {
+                  navigate(`/journal/${e.target.value}`)
+                  e.target.value = ''
+                }
+              }}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => pastDateInputRef.current?.showPicker?.() ?? pastDateInputRef.current?.click()}
+              title="Open or create an entry for a past date"
+            >
+              <RiCalendarLine className="w-4 h-4" />
+              Past entry
+            </Button>
+          </div>
           <Button onClick={() => navigate(`/journal/${today}`)}>
             {entries.some(e => e.entry_date === today) ? "Open today's entry" : "Start today's entry"}
           </Button>
@@ -370,6 +372,21 @@ export function JournalListPage() {
         onClose={() => setFilterSheetOpen(false)}
         activeCount={[projectFilter, ratingFilter, groupBy !== 'none' ? groupBy : '', sort !== 'newest' ? sort : ''].filter(Boolean).length}
       >
+        {/* Past entry date picker — mobile only (desktop uses button + showPicker) */}
+        <FilterRow label="Past entry">
+          <input
+            type="date"
+            max={today}
+            className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            onChange={e => {
+              if (e.target.value) {
+                navigate(`/journal/${e.target.value}`)
+                setFilterSheetOpen(false)
+                e.target.value = ''
+              }
+            }}
+          />
+        </FilterRow>
         {allProjects.length > 0 && (
           <FilterRow label="Project">
             <Select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="w-full">
