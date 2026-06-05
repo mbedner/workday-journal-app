@@ -265,7 +265,7 @@ export function JournalListPage() {
           )}
         </div>
         {entry.focus && (
-          <p className="text-sm text-gray-700 line-clamp-3 leading-snug flex-1">
+          <p className="text-sm text-gray-700 line-clamp-3 leading-snug">
             {stripMarkup(entry.focus)}
           </p>
         )}
