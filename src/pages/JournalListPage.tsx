@@ -433,9 +433,26 @@ export function JournalListPage() {
         <CalendarView items={calendarItems} />
       ) : view === 'grid' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map(entry => <EntryCard key={entry.id} entry={entry} />)}
-          </div>
+          {groupedItems ? (
+            <div className="space-y-6">
+              {groupedItems.map(([label, groupEntries]) => (
+                <div key={label}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide shrink-0">{displayLabel(label)}</p>
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-xs text-gray-300 shrink-0">{groupEntries.length}</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {groupEntries.map(entry => <EntryCard key={entry.id} entry={entry} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filtered.map(entry => <EntryCard key={entry.id} entry={entry} />)}
+            </div>
+          )}
           {canLoadMore && (
             <div className="flex flex-col items-center gap-1 pt-2">
               <Button variant="secondary" onClick={loadMore} loading={loadingMore}>Load more</Button>
