@@ -270,7 +270,7 @@ export function TranscriptsListPage() {
           )}
         </div>
         {(t.summary || t.raw_transcript) && (
-          <p className="text-xs text-gray-500 line-clamp-3 flex-1 leading-relaxed">
+          <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
             {t.summary ? t.summary : stripMarkup(t.raw_transcript ?? '')}
           </p>
         )}
