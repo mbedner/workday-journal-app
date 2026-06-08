@@ -51,20 +51,49 @@ async function isDuplicate(projectId: string, content: string): Promise<boolean>
 // ── Gemini extraction ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(projectName: string): string {
-  return `You are analyzing a meeting note to identify decisions specifically about the "${projectName}" project.
+  return `You are analyzing a meeting note to extract high-quality, meaningful decisions about the "${projectName}" project.
 
-CRITICAL FILTER: This meeting may cover multiple projects and topics. You must ONLY extract decisions that directly concern the "${projectName}" project. If a decision is about a different project, a general team matter, or an unrelated topic, do not include it.
+── PROJECT FILTER ────────────────────────────────────────────────────────────
+This meeting may span multiple projects. Only extract decisions that directly concern "${projectName}". Ignore everything else.
 
-A decision is something the team committed to, agreed on, moved forward on, or explicitly ruled out — and it must be specifically relevant to "${projectName}". Look for signals like: "we decided", "the team agreed", "going forward", "the plan is", "we ruled out", "we're deprioritizing", "the MVP will/won't", "we're moving toward."
+── SIGNIFICANCE TEST ─────────────────────────────────────────────────────────
+Before extracting anything, ask: "Would a new team member joining ${projectName} need to know this decision to understand the project's direction, constraints, or key choices?" If no, do not extract it.
 
-Do NOT extract: observations, aspirations, things still under discussion, or decisions that belong to other projects.
+── DO NOT EXTRACT ────────────────────────────────────────────────────────────
+✗ Task assignments ("Alice will update the docs")
+✗ Scheduling ("stand-up moves to Thursday")
+✗ Follow-up commitments ("Bob will look into this")
+✗ Status updates, observations, or what was discussed
+✗ Decisions that are provisional, still under debate, or need more research
+✗ Trivial logistics that don't affect the project's direction or architecture
 
-Return a JSON array. If no decisions relevant to "${projectName}" are found, return []. Each item:
+── DO EXTRACT ────────────────────────────────────────────────────────────────
+✓ Scope decisions: what's in/out of the product or release
+✓ Architecture and technical choices made (not just discussed)
+✓ Design or UX direction the team committed to
+✓ Explicit trade-offs accepted ("we're choosing X over Y because...")
+✓ Resource or timeline commitments made at a leadership level
+✓ Things explicitly ruled out with reasoning
+
+── DECISION TYPES ────────────────────────────────────────────────────────────
+Classify each decision as one of:
+- "strategic"  — Affects direction, goals, scope, or positioning. These shape what the project IS. (e.g., "The MVP targets SMB customers only", "We will not rebuild the legacy auth system")
+- "tactical"   — Specific implementation, technology, or design choices committed to. (e.g., "Navigation uses a tab bar not a sidebar", "Auth is OAuth2 not session-based")
+- "operational" — Team structure, process, or ownership decisions with lasting impact. (e.g., "Design owns all component specs", "Releases require two approvals")
+
+── CONFIDENCE ────────────────────────────────────────────────────────────────
+- "high"   — Explicitly stated commitment, clear language of decision
+- "medium" — Strong implication of decision, clear direction but not explicit
+- "low"    — Inferred; mark low only if you are uncertain
+
+Return a JSON array. If no qualifying decisions exist for "${projectName}", return [].
+Each item must include all five fields:
 {
-  "content": "concise present-tense statement of the decision",
+  "content":    "concise present-tense statement, 10–25 words",
+  "type":       "strategic" | "tactical" | "operational",
   "confidence": "high" | "medium" | "low",
-  "people": ["first and last names mentioned in context of this decision"],
-  "excerpt": "the exact sentence or phrase from the source that led to this extraction"
+  "people":     ["Full Name of anyone specifically mentioned in context of this decision"],
+  "excerpt":    "the exact sentence or phrase from the source that supports this extraction"
 }`
 }
 
@@ -73,7 +102,7 @@ async function extractDecisionsFromContent(opts: {
   date:         string
   projectName:  string
   attendees:    string
-}): Promise<Array<{ content: string; confidence: 'high' | 'medium' | 'low'; people: string[]; excerpt: string }>> {
+}): Promise<Array<{ content: string; type: 'strategic' | 'tactical' | 'operational'; confidence: 'high' | 'medium' | 'low'; people: string[]; excerpt: string }>> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return []
 
@@ -175,6 +204,7 @@ async function runExtraction(opts: {
         project_id:  projectId,
         user_id:     opts.userId,
         content:     c.content,
+        type:        c.type   ?? null,
         source_type: opts.sourceType,
         source_id:   opts.sourceId,
         date,
@@ -279,7 +309,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ── PATCH /api/decisions/:id ─────────────────────────────────────────────
     if (req.method === 'PATCH' && rest[0] && rest[0] !== 'extract' && rest[0] !== 'backfill') {
       const decisionId = rest[0]
-      const allowed    = ['content', 'status', 'superseded_by', 'people', 'notes']
+      const allowed    = ['content', 'type', 'status', 'superseded_by', 'people', 'notes']
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
       for (const key of allowed) {
         if (key in (req.body ?? {})) patch[key] = req.body[key]

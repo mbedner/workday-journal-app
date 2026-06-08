@@ -131,9 +131,18 @@ function DecisionCard({ decision, journals, transcripts, onMenu }: {
           </p>
         ) : null}
 
-        {/* Date + people */}
+        {/* Date + type + people */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-xs text-gray-400">{format(new Date(decision.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
+          {decision.type && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${{
+              strategic:   'bg-violet-50 text-violet-700',
+              tactical:    'bg-sky-50 text-sky-700',
+              operational: 'bg-slate-100 text-slate-600',
+            }[decision.type] ?? 'bg-gray-100 text-gray-600'}`}>
+              {decision.type}
+            </span>
+          )}
           {decision.people.map(p => (
             <span key={p} className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">
               {p}

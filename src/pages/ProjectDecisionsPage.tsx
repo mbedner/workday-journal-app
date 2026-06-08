@@ -7,6 +7,9 @@ import {
   RiScalesLine,
   RiCheckLine,
   RiCloseLine,
+  RiArrowDownSLine,
+  RiArrowUpSLine,
+  RiArrowUpDownLine,
 } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
@@ -19,7 +22,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { fetchDecisions, createDecision, updateDecision, deleteDecision } from '../lib/decisions'
 
-type Tab = 'active' | 'pending_review' | 'superseded' | 'dismissed'
+type Tab       = 'active' | 'pending_review' | 'superseded' | 'dismissed'
+type SortCol   = 'content' | 'type' | 'date' | 'confidence'
+type SortDir   = 'asc' | 'desc'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'active',         label: 'Active'     },
@@ -31,125 +36,282 @@ const TABS: { key: Tab; label: string }[] = [
 const EMPTY_DESCRIPTIONS: Record<Tab, string> = {
   active:         'Decisions are extracted automatically from meeting notes, or you can add one manually.',
   pending_review: 'No decisions are waiting for review.',
-  superseded:     'Decisions that have been replaced by newer ones will appear here.',
-  dismissed:      'Dismissed decisions are kept for reference but hidden from the active view.',
+  superseded:     'Decisions replaced by newer choices appear here.',
+  dismissed:      'Dismissed decisions are kept for reference.',
 }
 
-function groupByMonth(decisions: Decision[]): Array<{ label: string; items: Decision[] }> {
-  const groups = new Map<string, Decision[]>()
-  for (const d of decisions) {
-    const key = format(new Date(d.date + 'T12:00:00'), 'MMMM yyyy')
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(d)
-  }
-  return [...groups.entries()].map(([label, items]) => ({ label, items }))
+const TYPE_ORDER: Record<string, number>  = { strategic: 0, tactical: 1, operational: 2 }
+const CONF_ORDER: Record<string, number>  = { high: 0, medium: 1, low: 2 }
+
+function sortDecisions(decisions: Decision[], col: SortCol, dir: SortDir): Decision[] {
+  return [...decisions].sort((a, b) => {
+    let cmp = 0
+    if (col === 'content')    cmp = a.content.localeCompare(b.content)
+    if (col === 'date')       cmp = a.date.localeCompare(b.date)
+    if (col === 'type')       cmp = (TYPE_ORDER[a.type ?? ''] ?? 9) - (TYPE_ORDER[b.type ?? ''] ?? 9)
+    if (col === 'confidence') cmp = (CONF_ORDER[a.confidence ?? ''] ?? 9) - (CONF_ORDER[b.confidence ?? ''] ?? 9)
+    return dir === 'asc' ? cmp : -cmp
+  })
 }
 
-// ── Decision card ─────────────────────────────────────────────────────────────
+// ── Sortable column header ────────────────────────────────────────────────────
 
-function DecisionCard({
-  d, transcripts, tab, onInlineAction, onMenu,
+function ColHeader({
+  label, col, sortCol, sortDir, onSort, className = '',
+}: {
+  label: string; col: SortCol; sortCol: SortCol; sortDir: SortDir
+  onSort: (c: SortCol) => void; className?: string
+}) {
+  const active = sortCol === col
+  return (
+    <th className={`px-3 py-2.5 text-left ${className}`}>
+      <button
+        onClick={() => onSort(col)}
+        className="flex items-center gap-1 group"
+      >
+        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</span>
+        <span className={`transition-colors ${active ? 'text-indigo-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
+          {active
+            ? sortDir === 'asc' ? <RiArrowUpSLine size={13} /> : <RiArrowDownSLine size={13} />
+            : <RiArrowUpDownLine size={12} />}
+        </span>
+      </button>
+    </th>
+  )
+}
+
+// ── Type badge ────────────────────────────────────────────────────────────────
+
+const TYPE_STYLES: Record<string, string> = {
+  strategic:   'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+  tactical:    'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+  operational: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200',
+}
+
+function TypeBadge({ type }: { type: Decision['type'] }) {
+  if (!type) return <span className="text-gray-300 text-xs">—</span>
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${TYPE_STYLES[type] ?? 'bg-gray-100 text-gray-600'}`}>
+      {type}
+    </span>
+  )
+}
+
+// ── Confidence badge ──────────────────────────────────────────────────────────
+
+const CONF_STYLES: Record<string, string> = {
+  high:   'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  medium: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  low:    'bg-red-50 text-red-600 ring-1 ring-red-200',
+}
+
+function ConfBadge({ confidence }: { confidence: Decision['confidence'] }) {
+  if (!confidence) return <span className="text-gray-300 text-xs">—</span>
+  const label = confidence === 'medium' ? 'Med' : confidence.charAt(0).toUpperCase() + confidence.slice(1)
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${CONF_STYLES[confidence] ?? 'bg-gray-100 text-gray-600'}`}>
+      {label}
+    </span>
+  )
+}
+
+// ── Table row ─────────────────────────────────────────────────────────────────
+
+function DecisionRow({
+  d, transcripts, tab, expanded, onToggle, onInlineAction, onMenu,
 }: {
   d:              Decision
   transcripts:    Transcript[]
   tab:            Tab
+  expanded:       boolean
+  onToggle:       () => void
   onInlineAction: (action: 'activate' | 'dismiss', d: Decision) => void
   onMenu:         (d: Decision, e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   const src = (() => {
     if (d.source_type !== 'meeting_note') return null
     const t = transcripts.find(x => x.id === d.source_id)
-    return {
-      label: t?.meeting_title ?? 'Meeting note',
-      url:   `/transcripts/${d.source_id}`,
-    }
+    return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${d.source_id}` }
   })()
 
   const isPending    = tab === 'pending_review'
   const isSuperseded = d.status === 'superseded'
+  const isMuted      = isSuperseded || d.status === 'dismissed'
+
+  const abbrevPeople = d.people.map(p => {
+    const parts = p.trim().split(' ')
+    return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
+  })
 
   return (
-    <div className={`px-4 py-4 flex items-start gap-3 ${isPending ? 'border-l-[3px] border-amber-400' : ''}`}>
-      <div className={`flex-1 min-w-0 space-y-2 ${isSuperseded ? 'opacity-40' : ''}`}>
-
-        {/* Decision statement */}
-        <p className={`text-sm font-medium leading-snug ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-          {d.content}
-        </p>
-
-        {/* Evidence blockquote */}
-        {d.excerpt ? (
-          <div className="flex gap-2.5">
-            <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-3">
-                "{d.excerpt}"
-              </p>
-              {src && (
-                <Link
-                  to={src.url}
-                  className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline mt-0.5 inline-block font-medium"
-                >
-                  {src.label}
-                </Link>
-              )}
-            </div>
+    <>
+      <tr
+        className={`group transition-colors cursor-pointer select-none ${
+          isPending ? 'bg-amber-50/40 hover:bg-amber-50/60' : 'hover:bg-gray-50/80'
+        } ${isMuted ? 'opacity-50' : ''}`}
+        onClick={onToggle}
+      >
+        {/* Decision text */}
+        <td className="px-4 py-3 w-full max-w-0">
+          <div className="flex items-start gap-2">
+            <span className={`shrink-0 mt-0.5 text-gray-300 group-hover:text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}>
+              <RiArrowDownSLine size={15} />
+            </span>
+            <p className={`text-sm font-medium leading-snug line-clamp-2 ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+              {d.content}
+            </p>
           </div>
-        ) : src ? (
-          /* No excerpt but has a source — show source inline */
-          <p className="text-xs text-gray-400">
-            From{' '}
-            <Link to={src.url} className="text-indigo-500 hover:underline font-medium">
+        </td>
+
+        {/* Type */}
+        <td className="px-3 py-3 whitespace-nowrap hidden sm:table-cell">
+          <TypeBadge type={d.type} />
+        </td>
+
+        {/* Date */}
+        <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">
+          {format(new Date(d.date + 'T12:00:00'), 'MMM d, yyyy')}
+        </td>
+
+        {/* Source */}
+        <td className="px-3 py-3 whitespace-nowrap hidden md:table-cell max-w-[160px]">
+          {src ? (
+            <Link
+              to={src.url}
+              onClick={e => e.stopPropagation()}
+              className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline font-medium block truncate"
+              title={src.label}
+            >
               {src.label}
             </Link>
-          </p>
-        ) : null}
-
-        {/* Meta row: date + people */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-xs text-gray-400">
-            {format(new Date(d.date + 'T12:00:00'), 'MMM d, yyyy')}
-          </span>
-          {d.people.map(p => (
-            <span
-              key={p}
-              className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600"
-            >
-              {p}
-            </span>
-          ))}
-          {d.notes && (
-            <span className="text-xs text-gray-400 italic">{d.notes}</span>
+          ) : (
+            <span className="text-xs text-gray-300">Manual</span>
           )}
-        </div>
+        </td>
 
-        {/* Pending: inline confirm / dismiss */}
-        {isPending && (
-          <div className="flex items-center gap-2 pt-0.5">
-            <button
-              onClick={() => onInlineAction('activate', d)}
-              className="inline-flex items-center gap-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-2.5 py-1 rounded-md transition-colors"
-            >
-              <RiCheckLine size={11} /> Confirm
-            </button>
-            <button
-              onClick={() => onInlineAction('dismiss', d)}
-              className="inline-flex items-center gap-1 text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium px-2.5 py-1 rounded-md transition-colors"
-            >
-              <RiCloseLine size={11} /> Dismiss
-            </button>
-          </div>
-        )}
-      </div>
+        {/* Confidence */}
+        <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+          <ConfBadge confidence={d.confidence} />
+        </td>
 
-      {/* Overflow menu */}
-      <button
-        onClick={e => onMenu(d, e)}
-        className="shrink-0 p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition mt-0.5"
-      >
-        <RiMoreLine size={15} />
-      </button>
-    </div>
+        {/* People */}
+        <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+          {abbrevPeople.length > 0 ? (
+            <span className="text-xs text-gray-500" title={d.people.join(', ')}>
+              {abbrevPeople.slice(0, 2).join(', ')}
+              {abbrevPeople.length > 2 && (
+                <span className="text-gray-400"> +{abbrevPeople.length - 2}</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-gray-300 text-xs">—</span>
+          )}
+        </td>
+
+        {/* Actions — stop propagation so click doesn't toggle expand */}
+        <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+          {isPending ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onInlineAction('activate', d)}
+                title="Confirm decision"
+                className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors"
+              >
+                <RiCheckLine size={14} />
+              </button>
+              <button
+                onClick={() => onInlineAction('dismiss', d)}
+                title="Dismiss"
+                className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <RiCloseLine size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={e => onMenu(d, e)}
+              className="p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <RiMoreLine size={15} />
+            </button>
+          )}
+        </td>
+      </tr>
+
+      {/* Expanded row — excerpt + mobile-hidden metadata */}
+      {expanded && (
+        <tr className={isPending ? 'bg-amber-50/20' : 'bg-gray-50/40'}>
+          <td colSpan={7} className="px-4 pb-4 pt-1">
+            <div className="ml-5 space-y-2.5">
+
+              {/* Excerpt blockquote */}
+              {d.excerpt ? (
+                <div className="flex gap-2.5">
+                  <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
+                  <div>
+                    <p className="text-xs text-gray-500 italic leading-relaxed">
+                      "{d.excerpt}"
+                    </p>
+                    {src && (
+                      <Link to={src.url} className="text-xs text-indigo-500 hover:underline font-medium mt-0.5 inline-block">
+                        {src.label}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">No excerpt available for this decision.</p>
+              )}
+
+              {/* Mobile: show columns that are hidden on small screens */}
+              <div className="flex flex-wrap items-center gap-2 sm:hidden">
+                <TypeBadge type={d.type} />
+                <ConfBadge confidence={d.confidence} />
+                {abbrevPeople.length > 0 && (
+                  <span className="text-xs text-gray-500">{abbrevPeople.join(', ')}</span>
+                )}
+                {src && (
+                  <Link to={src.url} className="text-xs text-indigo-500 hover:underline">{src.label}</Link>
+                )}
+              </div>
+              <div className="flex-wrap items-center gap-2 hidden sm:flex md:hidden">
+                {src && (
+                  <span className="text-xs text-gray-400">
+                    Source: <Link to={src.url} className="text-indigo-500 hover:underline">{src.label}</Link>
+                  </span>
+                )}
+                <ConfBadge confidence={d.confidence} />
+                {abbrevPeople.length > 0 && (
+                  <span className="text-xs text-gray-500">{abbrevPeople.join(', ')}</span>
+                )}
+              </div>
+
+              {d.notes && (
+                <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-1.5">{d.notes}</p>
+              )}
+
+              {/* Pending: full confirm/dismiss with label */}
+              {isPending && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <button
+                    onClick={() => onInlineAction('activate', d)}
+                    className="inline-flex items-center gap-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-2.5 py-1 rounded-md transition-colors"
+                  >
+                    <RiCheckLine size={11} /> Confirm decision
+                  </button>
+                  <button
+                    onClick={() => onInlineAction('dismiss', d)}
+                    className="inline-flex items-center gap-1 text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium px-2.5 py-1 rounded-md transition-colors"
+                  >
+                    <RiCloseLine size={11} /> Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -166,12 +328,14 @@ export function ProjectDecisionsPage() {
   const [loading,     setLoading]     = useState(true)
   const [userId,      setUserId]      = useState('')
   const [tab,         setTab]         = useState<Tab>('active')
+  const [expanded,    setExpanded]    = useState<string | null>(null)
+  const [sortCol,     setSortCol]     = useState<SortCol>('date')
+  const [sortDir,     setSortDir]     = useState<SortDir>('desc')
 
-  const [addOpen,      setAddOpen]      = useState(false)
   const [menuDecision, setMenuDecision] = useState<Decision | null>(null)
   const [menuAnchor,   setMenuAnchor]   = useState<{ top: number; left: number } | null>(null)
 
-  // Add form
+  const [addOpen,   setAddOpen]   = useState(false)
   const [content,   setContent]   = useState('')
   const [date,      setDate]      = useState(format(new Date(), 'yyyy-MM-dd'))
   const [people,    setPeople]    = useState('')
@@ -211,9 +375,16 @@ export function ProjectDecisionsPage() {
     fetchDecisions(id, undefined, 500).then(setDecisions).catch(() => {})
   }
 
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir(col === 'date' ? 'desc' : 'asc') }
+    setExpanded(null)
+  }
+
   const handleInlineAction = async (action: 'activate' | 'dismiss', d: Decision) => {
     try {
       await updateDecision(d.id, { status: action === 'activate' ? 'active' : 'dismissed' })
+      setExpanded(null)
       reload()
     } catch {
       addToast('Action failed', 'error')
@@ -275,23 +446,32 @@ export function ProjectDecisionsPage() {
   }
 
   const menuItems = (d: Decision) => {
-    const items = [{ key: 'edit', label: 'Edit' }]
-    if (d.status === 'active')               items.push({ key: 'supersede', label: 'Mark as superseded' })
-    if (d.status !== 'dismissed')            items.push({ key: 'dismiss',   label: 'Dismiss' })
-    if (d.status === 'dismissed' || d.status === 'superseded') items.push({ key: 'activate', label: 'Restore to active' })
-    if (d.source_type === 'manual' || d.status === 'dismissed') items.push({ key: 'delete', label: 'Delete' })
+    const items: { key: string; label: string }[] = [{ key: 'edit', label: 'Edit' }]
+    if (d.status === 'active')    items.push({ key: 'supersede', label: 'Mark as superseded' })
+    if (d.status !== 'dismissed') items.push({ key: 'dismiss',   label: 'Dismiss' })
+    if (d.status === 'dismissed' || d.status === 'superseded')
+      items.push({ key: 'activate', label: 'Restore to active' })
+    if (d.source_type === 'manual' || d.status === 'dismissed')
+      items.push({ key: 'delete', label: 'Delete' })
     return items
   }
 
-  const filtered = decisions.filter(d => d.status === tab)
-  const grouped  = groupByMonth(filtered)
+  const filtered = sortDecisions(
+    decisions.filter(d => d.status === tab),
+    sortCol, sortDir,
+  )
 
   if (loading) return (
     <div className="space-y-6 animate-pulse">
       <div className="h-4 w-32 bg-gray-200 rounded" />
       <div className="h-8 w-64 bg-gray-200 rounded" />
-      <div className="space-y-3">
-        {[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-xl" />)}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="h-12 border-b border-gray-100 px-4 flex items-center gap-3">
+            <div className="h-3 w-2/3 bg-gray-100 rounded" />
+            <div className="h-5 w-16 bg-gray-100 rounded-md ml-auto" />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -317,7 +497,12 @@ export function ProjectDecisionsPage() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{project?.name} — Decisions</h1>
               <p className="text-sm text-gray-500">
-                {decisions.filter(d => d.status === 'active').length} active decisions
+                {decisions.filter(d => d.status === 'active').length} active
+                {decisions.filter(d => d.status === 'pending_review').length > 0 && (
+                  <span className="text-amber-600 font-medium">
+                    {' · '}{decisions.filter(d => d.status === 'pending_review').length} pending review
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -334,7 +519,7 @@ export function ProjectDecisionsPage() {
           return (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => { setTab(t.key); setExpanded(null) }}
               className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 tab === t.key
                   ? 'border-indigo-600 text-indigo-600'
@@ -358,7 +543,7 @@ export function ProjectDecisionsPage() {
         })}
       </div>
 
-      {/* Decision list — grouped by month */}
+      {/* Table */}
       {filtered.length === 0 ? (
         <EmptyState
           title={`No ${TABS.find(t => t.key === tab)?.label.toLowerCase() ?? ''} decisions`}
@@ -366,26 +551,43 @@ export function ProjectDecisionsPage() {
           action={tab === 'active' ? { label: 'Add decision', onClick: () => setAddOpen(true) } : undefined}
         />
       ) : (
-        <div className="space-y-6">
-          {grouped.map(({ label, items }) => (
-            <div key={label}>
-              {/* Month header */}
-              <div className="flex items-center gap-3 mb-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
-                  {label}
-                </p>
-                <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
-              </div>
-
-              {/* Cards */}
-              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-                {items.map(d => (
-                  <DecisionCard
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[580px]">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  {/* Decision — not sortable by default but we offer alphabetical */}
+                  <th className="px-4 py-2.5 text-left">
+                    <button onClick={() => handleSort('content')} className="flex items-center gap-1 group">
+                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</span>
+                      <span className={`transition-colors ${sortCol === 'content' ? 'text-indigo-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
+                        {sortCol === 'content'
+                          ? sortDir === 'asc' ? <RiArrowUpSLine size={13} /> : <RiArrowDownSLine size={13} />
+                          : <RiArrowUpDownLine size={12} />}
+                      </span>
+                    </button>
+                  </th>
+                  <ColHeader label="Type"       col="type"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell" />
+                  <ColHeader label="Date"       col="date"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell whitespace-nowrap">
+                    Source
+                  </th>
+                  <ColHeader label="Confidence" col="confidence" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden lg:table-cell whitespace-nowrap" />
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell whitespace-nowrap">
+                    People
+                  </th>
+                  <th className="w-16" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(d => (
+                  <DecisionRow
                     key={d.id}
                     d={d}
                     transcripts={transcripts}
                     tab={tab}
+                    expanded={expanded === d.id}
+                    onToggle={() => setExpanded(expanded === d.id ? null : d.id)}
                     onInlineAction={handleInlineAction}
                     onMenu={(decision, e) => {
                       const rect = e.currentTarget.getBoundingClientRect()
@@ -394,9 +596,19 @@ export function ProjectDecisionsPage() {
                     }}
                   />
                 ))}
-              </div>
-            </div>
-          ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer: row count */}
+          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+            <p className="text-xs text-gray-400">
+              {filtered.length} {filtered.length === 1 ? 'decision' : 'decisions'}
+              {sortCol !== 'date' || sortDir !== 'desc'
+                ? ` · sorted by ${sortCol} ${sortDir === 'asc' ? '↑' : '↓'}`
+                : ''}
+            </p>
+          </div>
         </div>
       )}
 

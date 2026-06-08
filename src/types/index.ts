@@ -87,6 +87,7 @@ export interface Decision {
   source_id: string | null
   date: string
   people: string[]
+  type: 'strategic' | 'tactical' | 'operational' | null
   confidence: 'high' | 'medium' | 'low' | null
   status: 'pending_review' | 'active' | 'superseded' | 'dismissed'
   superseded_by: string | null
