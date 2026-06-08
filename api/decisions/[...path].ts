@@ -267,6 +267,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ extracted: totalExtracted, skipped: totalSkipped, status: 'done' })
     }
 
+    // ── POST /api/decisions/purge ───────────────────────────────────────────
+    // Deletes all decisions for a project matching a given source_type.
+    // Intended for cleanup of old journal-extracted decisions.
+    if (req.method === 'POST' && rest[0] === 'purge') {
+      const { project_id, source_type } = req.body ?? {}
+      if (!project_id || !source_type) {
+        return res.status(400).json({ error: 'project_id and source_type required' })
+      }
+      const { count, error } = await supabase
+        .from('decisions')
+        .delete({ count: 'exact' })
+        .eq('project_id', project_id)
+        .eq('source_type', source_type)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ deleted: count ?? 0 })
+    }
+
     // ── GET /api/decisions ──────────────────────────────────────────────────
     if (req.method === 'GET' && rest.length === 0) {
       const { project_id, status, limit = '50' } = req.query as Record<string, string>

@@ -129,9 +129,14 @@ function DecisionRow({
   onMenu:         (d: Decision, e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   const src = (() => {
-    if (d.source_type !== 'meeting_note') return null
-    const t = transcripts.find(x => x.id === d.source_id)
-    return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${d.source_id}` }
+    if (d.source_type === 'meeting_note') {
+      const t = transcripts.find(x => x.id === d.source_id)
+      return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${d.source_id}` }
+    }
+    if (d.source_type === 'journal_entry') {
+      return { label: `Journal · ${format(new Date(d.date + 'T12:00:00'), 'MMM d')}`, url: `/journal/${d.date}` }
+    }
+    return null
   })()
 
   const isPending    = tab === 'pending_review'
@@ -477,10 +482,7 @@ export function ProjectDecisionsPage() {
   )
 
   return (
-    <div
-      className="space-y-6"
-      onClick={() => { if (menuAnchor) { setMenuAnchor(null); setMenuDecision(null) } }}
-    >
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <Link
@@ -612,12 +614,17 @@ export function ProjectDecisionsPage() {
         </div>
       )}
 
-      {/* Context menu */}
+      {/* Backdrop + context menu */}
+      {menuAnchor && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setMenuAnchor(null); setMenuDecision(null) }}
+        />
+      )}
       {menuAnchor && menuDecision && (
         <div
           className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48"
           style={{ top: menuAnchor.top, left: menuAnchor.left }}
-          onClick={e => e.stopPropagation()}
         >
           {menuItems(menuDecision).map(item => (
             <button

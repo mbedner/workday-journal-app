@@ -83,6 +83,22 @@ export function triggerExtraction(opts: {
   }).catch(() => { /* silent — never block the save */ })
 }
 
+// ── Purge by source type ──────────────────────────────────────────────────────
+
+export async function purgeDecisionsBySource(
+  projectId: string,
+  sourceType: 'journal_entry' | 'manual'
+): Promise<{ deleted: number }> {
+  const res = await fetch(`${BASE}/purge`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ project_id: projectId, source_type: sourceType }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error ?? 'Purge failed')
+  return json
+}
+
 // ── Backfill ──────────────────────────────────────────────────────────────────
 
 export async function backfillDecisions(projectId: string, userId: string): Promise<{ extracted: number; skipped: number }> {

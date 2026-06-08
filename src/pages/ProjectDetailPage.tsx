@@ -33,6 +33,7 @@ import {
   updateDecision,
   deleteDecision,
   backfillDecisions,
+  purgeDecisionsBySource,
 } from '../lib/decisions'
 
 function stripMarkup(text: string): string {
@@ -75,91 +76,74 @@ function StatCard({ label, value, icon: Icon, color, onClick, badge }: {
   return onClick ? <button onClick={onClick} className="text-left w-full">{inner}</button> : inner
 }
 
-// ── Decision card ─────────────────────────────────────────────────────────────
+// ── Type badge (inline) ───────────────────────────────────────────────────────
 
-function DecisionCard({ decision, journals, transcripts, onMenu }: {
+const TYPE_BADGE: Record<string, string> = {
+  strategic:   'bg-violet-50 text-violet-700',
+  tactical:    'bg-sky-50 text-sky-700',
+  operational: 'bg-slate-100 text-slate-600',
+}
+
+// ── Compact decision table row ────────────────────────────────────────────────
+
+function DecisionRow({ decision, transcripts, onMenu }: {
   decision:    Decision
-  journals:    JournalEntry[]
   transcripts: Transcript[]
   onMenu?:     (d: Decision, anchor: HTMLElement) => void
 }) {
-  const sourceLabel = (() => {
-    if (decision.source_type === 'manual') return null
-    if (decision.source_type === 'journal_entry') {
-      const entry = journals.find(j => j.id === decision.source_id)
-      const dateStr = entry?.entry_date ?? decision.source_id
-      return { label: `Journal · ${format(new Date((dateStr ?? '') + 'T12:00:00'), 'MMM d, yyyy')}`, url: `/journal/${dateStr}` }
+  const src = (() => {
+    if (decision.source_type === 'meeting_note') {
+      const t = transcripts.find(x => x.id === decision.source_id)
+      return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${decision.source_id}` }
     }
-    const t = transcripts.find(x => x.id === decision.source_id)
-    return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${decision.source_id}` }
+    if (decision.source_type === 'journal_entry') {
+      return { label: `Journal · ${format(new Date(decision.date + 'T12:00:00'), 'MMM d')}`, url: `/journal/${decision.date}` }
+    }
+    return null
   })()
 
   const isSuperseded = decision.status === 'superseded'
 
   return (
-    <div className={`px-4 py-4 flex items-start gap-3 ${isSuperseded ? 'opacity-40' : ''}`}>
-      <div className="flex-1 min-w-0 space-y-2">
-        {/* Decision statement */}
-        <p className={`text-sm font-medium leading-snug ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+    <tr className={`group ${isSuperseded ? 'opacity-40' : ''}`}>
+      <td className="px-4 py-2.5 w-full max-w-0">
+        <p className={`text-sm font-medium leading-snug line-clamp-2 ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
           {decision.content}
         </p>
-
-        {/* Evidence blockquote */}
-        {decision.excerpt ? (
-          <div className="flex gap-2.5">
-            <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
-            <div className="min-w-0">
-              <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
-                "{decision.excerpt}"
-              </p>
-              {sourceLabel && (
-                <Link
-                  to={sourceLabel.url}
-                  className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline mt-0.5 inline-block font-medium"
-                >
-                  {sourceLabel.label}
-                </Link>
-              )}
-            </div>
-          </div>
-        ) : sourceLabel ? (
-          <p className="text-xs text-gray-400">
-            From{' '}
-            <Link to={sourceLabel.url} className="text-indigo-500 hover:underline font-medium">
-              {sourceLabel.label}
-            </Link>
-          </p>
-        ) : null}
-
-        {/* Date + type + people */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-xs text-gray-400">{format(new Date(decision.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
-          {decision.type && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${{
-              strategic:   'bg-violet-50 text-violet-700',
-              tactical:    'bg-sky-50 text-sky-700',
-              operational: 'bg-slate-100 text-slate-600',
-            }[decision.type] ?? 'bg-gray-100 text-gray-600'}`}>
-              {decision.type}
-            </span>
-          )}
-          {decision.people.map(p => (
-            <span key={p} className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">
-              {p}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {onMenu && (
-        <button
-          onClick={e => onMenu(decision, e.currentTarget)}
-          className="shrink-0 p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition mt-0.5"
-        >
-          <RiMoreLine size={15} />
-        </button>
-      )}
-    </div>
+        {decision.excerpt && (
+          <p className="text-xs text-gray-400 italic line-clamp-1 mt-0.5">"{decision.excerpt}"</p>
+        )}
+      </td>
+      <td className="px-2 py-2.5 whitespace-nowrap hidden sm:table-cell">
+        {decision.type && (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${TYPE_BADGE[decision.type] ?? 'bg-gray-100 text-gray-600'}`}>
+            {decision.type}
+          </span>
+        )}
+      </td>
+      <td className="px-2 py-2.5 whitespace-nowrap text-xs text-gray-400">
+        {format(new Date(decision.date + 'T12:00:00'), 'MMM d')}
+      </td>
+      <td className="px-2 py-2.5 whitespace-nowrap hidden md:table-cell max-w-[140px]">
+        {src ? (
+          <Link to={src.url} className="text-xs text-indigo-500 hover:underline font-medium block truncate" title={src.label}>
+            {src.label}
+          </Link>
+        ) : (
+          <span className="text-xs text-gray-300">Manual</span>
+        )}
+      </td>
+      <td className="px-2 py-2.5 w-8">
+        {onMenu && (
+          <button
+            onClick={e => onMenu(decision, e.currentTarget)}
+            className="p-1 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition opacity-0 group-hover:opacity-100"
+          >
+            <RiMoreLine size={14} />
+          </button>
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -382,8 +366,9 @@ export function ProjectDetailPage() {
   const [toggling,    setToggling]    = useState<string | null>(null)
   const [userId,      setUserId]      = useState<string>('')
 
-  // Backfill
+  // Backfill / cleanup
   const [backfilling, setBackfilling] = useState(false)
+  const [cleaning,    setCleaning]    = useState(false)
 
   // Edit project modal
   const [editOpen, setEditOpen] = useState(false)
@@ -493,6 +478,23 @@ export function ProjectDetailPage() {
       addToast(e.message ?? 'Backfill failed', 'error')
     } finally {
       setBackfilling(false)
+    }
+  }
+
+  const handleCleanup = async () => {
+    if (!id) return
+    const count = decisions.filter(d => d.source_type === 'journal_entry').length
+    if (count === 0) { addToast('No journal-extracted decisions to remove', 'info'); return }
+    if (!window.confirm(`Remove ${count} decision${count !== 1 ? 's' : ''} extracted from journal entries?`)) return
+    setCleaning(true)
+    try {
+      const { deleted } = await purgeDecisionsBySource(id, 'journal_entry')
+      addToast(`Removed ${deleted} journal-extracted decision${deleted !== 1 ? 's' : ''}`, 'success')
+      reloadDecisions()
+    } catch (e: any) {
+      addToast(e.message ?? 'Cleanup failed', 'error')
+    } finally {
+      setCleaning(false)
     }
   }
 
@@ -771,7 +773,7 @@ export function ProjectDetailPage() {
           {activeDecisions.length === 0 ? (
             <div className="px-4 py-8 text-center space-y-3">
               <p className="text-sm text-gray-400">
-                No decisions recorded for this project yet. Decisions are extracted automatically from your journal entries and meeting notes, or you can add one manually.
+                No active decisions yet. Decisions are extracted from meeting notes, or you can add one manually.
               </p>
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
@@ -782,59 +784,90 @@ export function ProjectDetailPage() {
                   size="sm"
                   onClick={handleBackfill}
                   disabled={backfilling}
-                  title="Scan all existing journal entries and meeting notes for decisions"
                 >
-                  {backfilling ? <><RiLoader4Line size={14} className="animate-spin" /> Scanning…</> : 'Scan existing entries'}
+                  {backfilling ? <><RiLoader4Line size={14} className="animate-spin" /> Scanning…</> : 'Scan meeting notes'}
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {recentDecisions.map(d => (
-                <DecisionCard
-                  key={d.id}
-                  decision={d}
-                  journals={journals}
-                  transcripts={transcripts}
-                  onMenu={(dec, anchor) => {
-                    const rect = anchor.getBoundingClientRect()
-                    setMenuDecision(dec)
-                    setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 120 })
-                  }}
-                />
-              ))}
+            <>
+              {/* Compact table header */}
+              <div className="border-b border-gray-100 bg-gray-50 hidden sm:block">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</th>
+                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Type</th>
+                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Date</th>
+                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Source</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-100">
+                  {recentDecisions.map(d => (
+                    <DecisionRow
+                      key={d.id}
+                      decision={d}
+                      transcripts={transcripts}
+                      onMenu={(dec, anchor) => {
+                        const rect = anchor.getBoundingClientRect()
+                        setMenuDecision(dec)
+                        setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 140 })
+                      }}
+                    />
+                  ))}
+                </tbody>
+              </table>
               {activeDecisions.length > 5 && (
-                <div className="px-4 py-3 text-center">
+                <div className="px-4 py-3 text-center border-t border-gray-100">
                   <Link to={`/projects/${id}/decisions`} className="text-xs text-indigo-600 hover:underline">
                     View all {activeDecisions.length} decisions
                   </Link>
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
-        {/* Backfill button when decisions exist */}
-        {activeDecisions.length > 0 && (
-          <div className="mt-2 flex justify-end">
-            <button
-              onClick={handleBackfill}
-              disabled={backfilling}
-              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 disabled:opacity-50"
-            >
-              {backfilling ? <RiLoader4Line size={12} className="animate-spin" /> : null}
-              {backfilling ? 'Scanning…' : 'Scan existing entries for decisions'}
-            </button>
+        {/* Utility row: scan + cleanup */}
+        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            {decisions.some(d => d.source_type === 'journal_entry') && (
+              <button
+                onClick={handleCleanup}
+                disabled={cleaning}
+                className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+              >
+                {cleaning ? <RiLoader4Line size={11} className="animate-spin" /> : null}
+                Remove journal-extracted decisions
+              </button>
+            )}
           </div>
-        )}
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 disabled:opacity-50"
+          >
+            {backfilling ? <RiLoader4Line size={12} className="animate-spin" /> : null}
+            {backfilling ? 'Scanning…' : 'Scan existing entries for decisions'}
+          </button>
+        </div>
       </section>
 
-      {/* Context menu */}
+      {/* Backdrop + context menu */}
+      {menuAnchor && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => { setMenuAnchor(null); setMenuDecision(null) }}
+        />
+      )}
       {menuAnchor && menuDecision && (
         <div
           className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44"
           style={{ top: menuAnchor.top, left: menuAnchor.left }}
-          onClick={e => e.stopPropagation()}
         >
           {[
             { key: 'edit',      label: 'Edit' },
