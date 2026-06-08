@@ -255,20 +255,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let totalExtracted = 0
       let totalSkipped   = 0
 
-      // Find which transcripts have already been processed for this project
-      const { data: existing } = await supabase
-        .from('decisions')
-        .select('source_id')
-        .eq('project_id', project_id)
-        .eq('source_type', 'meeting_note')
-        .neq('status', 'dismissed')
-      const processedIds = new Set((existing ?? []).map((r: any) => r.source_id).filter(Boolean))
+      // Process up to 10 transcripts per run. Jaccard dedup inside runExtraction
+      // handles skipping content already extracted. Run again to process older notes.
+      const rows = (tp ?? []).slice(0, 10)
+      console.log(`backfill: ${(tp ?? []).length} total transcripts, processing ${rows.length}`)
 
-      // Only process transcripts not yet extracted; cap at 10 per run to stay within timeout
-      const unprocessed = (tp ?? []).filter(r => !processedIds.has(r.transcript_id)).slice(0, 10)
-      console.log(`backfill: ${(tp ?? []).length} total, ${processedIds.size} already done, ${unprocessed.length} to process`)
-
-      for (const row of unprocessed) {
+      for (const row of rows) {
         const r = await runExtraction({
           sourceType: 'meeting_note', sourceId: row.transcript_id,
           projectIds: [project_id], userId: user_id,
