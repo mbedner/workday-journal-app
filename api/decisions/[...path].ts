@@ -51,56 +51,52 @@ async function isDuplicate(projectId: string, content: string): Promise<boolean>
 // ── Gemini extraction ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(projectName: string): string {
-  return `You are a strict decision auditor extracting only the most significant decisions from a meeting note about "${projectName}".
+  return `You are extracting meaningful decisions from a meeting note about "${projectName}".
 
-Your job is to be HIGHLY SELECTIVE. A typical meeting should yield 0–3 decisions. Extracting nothing is correct and expected for many meetings. Never pad the list.
+Be selective. A typical meeting yields 1–4 decisions. Only extract things that actually shaped the project — not every topic discussed.
 
 ── PROJECT FILTER ────────────────────────────────────────────────────────────
-This meeting may span multiple projects. Only extract decisions that directly concern "${projectName}". Ignore everything else.
+This meeting may span multiple projects. Only extract decisions for "${projectName}". Ignore everything else.
 
-── THE BAR ───────────────────────────────────────────────────────────────────
-Before extracting anything, ask: "Would this decision be written down in a permanent architecture doc, a product spec, or a project retrospective — and would it still matter six months from now?"
+── SIGNIFICANCE TEST ─────────────────────────────────────────────────────────
+Ask: "If a new team member joined ${projectName} next month and didn't know this, would they make a mistake or be confused about the project's direction, constraints, or approach?"
+If no — skip it. When in doubt, skip it.
 
-If the answer is not a clear YES, do not extract it. When in doubt, leave it out.
-
-── DO NOT EXTRACT (these are the most common false positives) ────────────────
-✗ Any task, action item, or follow-up ("we'll look into X", "Alice will update the docs")
-✗ Scheduling or logistics ("stand-up moves to Thursday", "next review is Friday")
-✗ Things that are still under discussion, provisional, or need more research
+── DO NOT EXTRACT ────────────────────────────────────────────────────────────
+✗ Tasks, action items, or follow-ups ("Alice will update the docs", "we'll look into X")
+✗ Scheduling ("stand-up moves to Thursday", "we'll review next week")
 ✗ Status updates or progress reports ("the feature is 80% done")
-✗ Restatements of existing policy or prior decisions
-✗ Minor implementation details that any developer would decide independently
-✗ UI/UX preferences without an explicit commitment and clear reasoning
-✗ Anything where the "decision" is just the obvious or only option
-✗ Process suggestions that haven't been formally adopted
-✗ Anything you are inferring rather than reading explicitly in the text
+✗ Things still under discussion or needing more research — only extract finalised decisions
+✗ Obvious choices with no real alternative considered
+✗ Minor implementation details a developer would handle independently without asking
+✗ Vague preferences without explicit commitment ("we should probably use X")
+✗ Restatements of prior decisions already made
 
-── DO EXTRACT (only these, and only when explicitly stated) ──────────────────
-✓ A deliberate choice between two or more real alternatives, with explicit commitment
-✓ A confirmed scope boundary: something explicitly included in or excluded from the project
-✓ A technology, architecture, or integration choice that was finalised (not just discussed)
-✓ A formal policy or ownership rule adopted by the team (not just suggested)
-✓ Something the team has explicitly decided NOT to do, with reasoning
+── DO EXTRACT ────────────────────────────────────────────────────────────────
+✓ Scope: what is explicitly in or out of the product, release, or sprint
+✓ Technical/architecture choices that were committed to (not just floated)
+✓ Design or UX direction the team locked in with clear reasoning
+✓ Explicit trade-offs accepted ("we're doing X instead of Y because...")
+✓ Things the team explicitly decided NOT to do, with a reason
+✓ Process or ownership rules formally adopted (not just suggested)
 
 ── DECISION TYPES ────────────────────────────────────────────────────────────
-- "strategic"   — Shapes what the project IS or is NOT: goals, scope, positioning, explicit exclusions
-- "tactical"    — A finalised technical or implementation choice between real alternatives
-- "operational" — A formal team-wide process or ownership rule with lasting effect (not a one-off action)
+- "strategic"   — Direction, goals, scope, or what the project is/isn't
+- "tactical"    — A specific technical, design, or implementation choice that was locked in
+- "operational" — A team process or ownership rule with lasting effect
 
 ── CONFIDENCE ────────────────────────────────────────────────────────────────
-- "high"   — Explicit commitment in the text; no ambiguity
-- "medium" — Clear strong direction but not 100% explicit; use sparingly
+- "high"   — Explicitly committed to in the text
+- "medium" — Strongly implied but not 100% explicit
+Do NOT return "low" confidence. If uncertain, skip it.
 
-Do NOT return "low" confidence items. If you're uncertain, do not extract.
-
-── OUTPUT ────────────────────────────────────────────────────────────────────
-Return a JSON array of at most 5 items. If no decisions meet the bar, return [].
-Each item must have all five fields:
+Return a JSON array of at most 5 items. If nothing qualifies, return [].
+Each item must include all five fields:
 {
-  "content":    "concise present-tense statement of the decision, 10–25 words",
+  "content":    "concise present-tense statement, 10–25 words",
   "type":       "strategic" | "tactical" | "operational",
   "confidence": "high" | "medium",
-  "people":     ["Full Name of anyone specifically named in the context of this decision"],
+  "people":     ["Full Name of anyone specifically mentioned in context of this decision"],
   "excerpt":    "the exact sentence or phrase from the source that supports this extraction"
 }`
 }
