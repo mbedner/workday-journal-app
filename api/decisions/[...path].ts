@@ -51,46 +51,41 @@ async function isDuplicate(projectId: string, content: string): Promise<boolean>
 // ── Gemini extraction ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(projectName: string): string {
-  return `You are extracting meaningful decisions from a meeting note about "${projectName}".
+  return `You are extracting decisions from a meeting note about "${projectName}".
 
-Be selective. A typical meeting yields 1–4 decisions. Only extract things that actually shaped the project — not every topic discussed.
+Most meetings produce 2–5 extractable decisions. Return [] only if the note is purely status updates, scheduling, or contains no commitments at all.
 
 ── PROJECT FILTER ────────────────────────────────────────────────────────────
-This meeting may span multiple projects. Only extract decisions for "${projectName}". Ignore everything else.
+Only extract decisions that concern "${projectName}". Ignore other projects.
 
-── SIGNIFICANCE TEST ─────────────────────────────────────────────────────────
-Ask: "If a new team member joined ${projectName} next month and didn't know this, would they make a mistake or be confused about the project's direction, constraints, or approach?"
-If no — skip it. When in doubt, skip it.
+── WHAT IS A DECISION ────────────────────────────────────────────────────────
+A decision is anything the team agreed on that affects how the project is built, scoped, or run — something a team member would need to know to avoid making a conflicting choice later.
 
 ── DO NOT EXTRACT ────────────────────────────────────────────────────────────
-✗ Tasks, action items, or follow-ups ("Alice will update the docs", "we'll look into X")
-✗ Scheduling ("stand-up moves to Thursday", "we'll review next week")
-✗ Status updates or progress reports ("the feature is 80% done")
-✗ Things still under discussion or needing more research — only extract finalised decisions
-✗ Obvious choices with no real alternative considered
-✗ Minor implementation details a developer would handle independently without asking
-✗ Vague preferences without explicit commitment ("we should probably use X")
-✗ Restatements of prior decisions already made
+✗ Tasks and action items ("Alice will update the docs", "Bob will investigate")
+✗ Scheduling ("stand-up moves to Thursday")
+✗ Status updates ("the feature is 80% done", "we reviewed the designs")
+✗ Things still actively under debate or explicitly deferred
 
 ── DO EXTRACT ────────────────────────────────────────────────────────────────
-✓ Scope: what is explicitly in or out of the product, release, or sprint
-✓ Technical/architecture choices that were committed to (not just floated)
-✓ Design or UX direction the team locked in with clear reasoning
-✓ Explicit trade-offs accepted ("we're doing X instead of Y because...")
-✓ Things the team explicitly decided NOT to do, with a reason
-✓ Process or ownership rules formally adopted (not just suggested)
+✓ Technical, architecture, or integration choices the team agreed on
+✓ Scope: what's confirmed in or out of the product or release
+✓ Design or UX direction the team settled on
+✓ Trade-offs the team accepted ("we're going with X over Y")
+✓ Things explicitly ruled out or deprioritised
+✓ Process or workflow changes the team is adopting
 
 ── DECISION TYPES ────────────────────────────────────────────────────────────
-- "strategic"   — Direction, goals, scope, or what the project is/isn't
-- "tactical"    — A specific technical, design, or implementation choice that was locked in
-- "operational" — A team process or ownership rule with lasting effect
+- "strategic"   — Scope, goals, or direction of the project
+- "tactical"    — A specific technical or design choice
+- "operational" — A process, workflow, or ownership decision
 
 ── CONFIDENCE ────────────────────────────────────────────────────────────────
-- "high"   — Explicitly committed to in the text
-- "medium" — Strongly implied but not 100% explicit
-Do NOT return "low" confidence. If uncertain, skip it.
+- "high"   — Clearly stated or agreed in the text
+- "medium" — Strongly implied; the team appears to have settled on this
+Do not return "low" confidence items.
 
-Return a JSON array of at most 5 items. If nothing qualifies, return [].
+Return a JSON array of at most 7 items. Return [] only if truly nothing qualifies.
 Each item must include all five fields:
 {
   "content":    "concise present-tense statement, 10–25 words",
@@ -205,10 +200,10 @@ async function runExtraction(opts: {
       attendees,
     })
 
-    // Hard guardrails: drop low-confidence noise, cap at 5 per source
+    // Hard guardrails: drop low-confidence noise, cap at 7 per source
     const candidates = raw
       .filter(c => c.confidence === 'high' || c.confidence === 'medium')
-      .slice(0, 5)
+      .slice(0, 7)
 
     for (const c of candidates) {
       const dup = await isDuplicate(projectId, c.content)
