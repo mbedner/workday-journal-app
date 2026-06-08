@@ -102,10 +102,16 @@ Each item must include all five fields:
 }
 
 async function callGemini(apiKey: string, body: object): Promise<Response> {
-  return fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-  )
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12_000)
+  try {
+    return await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function extractDecisionsFromContent(opts: {
@@ -264,9 +270,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let totalExtracted = 0
       let totalSkipped   = 0
 
-      // Process up to 10 transcripts per run. Jaccard dedup inside runExtraction
-      // handles skipping content already extracted. Run again to process older notes.
-      const rows = (tp ?? []).slice(0, 10)
+      // Process up to 5 transcripts per run to stay well under the 60s limit.
+      // Each Gemini call has a 12s timeout. Run again to process more notes.
+      const rows = (tp ?? []).slice(0, 5)
       console.log(`backfill: ${(tp ?? []).length} total transcripts, processing ${rows.length}`)
 
       for (const row of rows) {
