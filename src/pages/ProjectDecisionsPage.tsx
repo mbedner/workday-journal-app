@@ -94,6 +94,157 @@ function TypeBadge({ type }: { type: Decision['type'] }) {
   )
 }
 
+// ── Mobile card ──────────────────────────────────────────────────────────────
+
+function DecisionMobileCard({
+  d, transcripts, tab, expanded, onToggle, onInlineAction, onMenu,
+}: {
+  d:              Decision
+  transcripts:    Transcript[]
+  tab:            Tab
+  expanded:       boolean
+  onToggle:       () => void
+  onInlineAction: (action: 'activate' | 'dismiss', d: Decision) => void
+  onMenu:         (d: Decision, e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const src = (() => {
+    if (d.source_type === 'meeting_note') {
+      const t = transcripts.find(x => x.id === d.source_id)
+      return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${d.source_id}` }
+    }
+    if (d.source_type === 'journal_entry') {
+      return { label: `Journal · ${format(new Date(d.date + 'T12:00:00'), 'MMM d')}`, url: `/journal/${d.date}` }
+    }
+    return null
+  })()
+
+  const isPending = tab === 'pending_review'
+  const isMuted   = d.status === 'superseded' || d.status === 'dismissed'
+
+  const abbrevPeople = d.people.map(p => {
+    const parts = p.trim().split(' ')
+    return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]
+  })
+
+  return (
+    <div
+      className={`p-4 border-b border-gray-100 last:border-0 transition-colors ${
+        isPending ? 'bg-amber-50/40' : ''
+      } ${isMuted ? 'opacity-50' : ''}`}
+    >
+      {/* Top row: type + date + actions */}
+      <div className="flex items-center gap-2 mb-2">
+        <TypeBadge type={d.type} />
+        <span className="text-xs text-gray-400 ml-auto">
+          {format(new Date(d.date + 'T12:00:00'), 'MMM d, yyyy')}
+        </span>
+        <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+          {isPending ? (
+            <>
+              <button
+                onClick={() => onInlineAction('activate', d)}
+                title="Confirm"
+                className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors"
+              >
+                <RiCheckLine size={14} />
+              </button>
+              <button
+                onClick={() => onInlineAction('dismiss', d)}
+                title="Dismiss"
+                className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <RiCloseLine size={14} />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={e => onMenu(d, e)}
+              className="p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <RiMoreLine size={15} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Decision text — tap to expand */}
+      <button
+        className="w-full text-left"
+        onClick={onToggle}
+      >
+        <p className={`text-sm font-medium leading-snug ${
+          d.status === 'superseded' ? 'line-through text-gray-400' : 'text-gray-900'
+        } ${expanded ? '' : 'line-clamp-3'}`}>
+          {d.content}
+        </p>
+      </button>
+
+      {/* Expanded: excerpt + source + people */}
+      {expanded && (
+        <div className="mt-2.5 space-y-2">
+          {d.excerpt ? (
+            <div className="flex gap-2">
+              <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
+              <p className="text-xs text-gray-500 italic leading-relaxed">"{d.excerpt}"</p>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">No excerpt available.</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {src && (
+              <Link
+                to={src.url}
+                className="text-xs text-indigo-500 hover:underline font-medium"
+                onClick={e => e.stopPropagation()}
+              >
+                {src.label}
+              </Link>
+            )}
+            {abbrevPeople.length > 0 && (
+              <span className="text-xs text-gray-500">{abbrevPeople.join(', ')}</span>
+            )}
+          </div>
+
+          {d.notes && (
+            <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-1.5">{d.notes}</p>
+          )}
+
+          {isPending && (
+            <div className="flex items-center gap-2 pt-0.5">
+              <button
+                onClick={() => onInlineAction('activate', d)}
+                className="inline-flex items-center gap-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-2.5 py-1 rounded-md transition-colors"
+              >
+                <RiCheckLine size={11} /> Confirm decision
+              </button>
+              <button
+                onClick={() => onInlineAction('dismiss', d)}
+                className="inline-flex items-center gap-1 text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium px-2.5 py-1 rounded-md transition-colors"
+              >
+                <RiCloseLine size={11} /> Dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Source line (always visible when not expanded) */}
+      {!expanded && src && (
+        <div className="mt-1.5">
+          <Link
+            to={src.url}
+            onClick={e => e.stopPropagation()}
+            className="text-xs text-indigo-400 hover:text-indigo-600 hover:underline"
+          >
+            {src.label}
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Table row ─────────────────────────────────────────────────────────────────
 
 function DecisionRow({
@@ -148,7 +299,7 @@ function DecisionRow({
         </td>
 
         {/* Type */}
-        <td className="px-3 py-3 whitespace-nowrap hidden sm:table-cell">
+        <td className="px-3 py-3 whitespace-nowrap">
           <TypeBadge type={d.type} />
         </td>
 
@@ -313,7 +464,6 @@ export function ProjectDecisionsPage() {
   const [menuAnchor,   setMenuAnchor]   = useState<{ top: number; left: number } | null>(null)
   const [editDecision, setEditDecision] = useState<Decision | null>(null)
   const [editText,     setEditText]     = useState('')
-  const [editSaving,   setEditSaving]   = useState(false)
 
   const [addOpen,   setAddOpen]   = useState(false)
   const [content,   setContent]   = useState('')
@@ -361,43 +511,44 @@ export function ProjectDecisionsPage() {
     setExpanded(null)
   }
 
-  const handleInlineAction = async (action: 'activate' | 'dismiss', d: Decision) => {
-    try {
-      await updateDecision(d.id, { status: action === 'activate' ? 'active' : 'dismissed' })
-      setExpanded(null)
+  // Optimistic status update — update local state immediately, then persist
+  const applyStatus = (decisionId: string, newStatus: Decision['status']) => {
+    setDecisions(prev => prev.map(d => d.id === decisionId ? { ...d, status: newStatus } : d))
+    setExpanded(null)
+    updateDecision(decisionId, { status: newStatus }).catch(() => {
+      addToast('Action failed — refreshing', 'error')
       reload()
-    } catch {
-      addToast('Action failed', 'error')
-    }
+    })
+  }
+
+  const handleInlineAction = (action: 'activate' | 'dismiss', d: Decision) => {
+    applyStatus(d.id, action === 'activate' ? 'active' : 'dismissed')
   }
 
   const handleMenuAction = async (action: string) => {
     if (!menuDecision) return
     setMenuAnchor(null)
-    try {
-      if (action === 'edit') {
-        setEditDecision(menuDecision)
-        setEditText(menuDecision.content)
-        return
-      } else if (action === 'activate') {
-        await updateDecision(menuDecision.id, { status: 'active' })
-        reload()
-      } else if (action === 'supersede') {
-        await updateDecision(menuDecision.id, { status: 'superseded' })
-        reload()
-      } else if (action === 'dismiss') {
-        await updateDecision(menuDecision.id, { status: 'dismissed' })
-        reload()
-      } else if (action === 'delete') {
-        if (!window.confirm('Delete this decision permanently?')) return
-        await deleteDecision(menuDecision.id)
-        setDecisions(prev => prev.filter(d => d.id !== menuDecision.id))
-        addToast('Decision deleted', 'success')
-      }
-    } catch (e: any) {
-      addToast(e.message ?? 'Action failed', 'error')
-    }
+    const d = menuDecision
     setMenuDecision(null)
+
+    if (action === 'edit') {
+      setEditDecision(d)
+      setEditText(d.content)
+      return
+    }
+    if (action === 'activate')  { applyStatus(d.id, 'active');     return }
+    if (action === 'supersede') { applyStatus(d.id, 'superseded'); return }
+    if (action === 'dismiss')   { applyStatus(d.id, 'dismissed');  return }
+    if (action === 'delete') {
+      if (!window.confirm('Delete this decision permanently?')) return
+      try {
+        await deleteDecision(d.id)
+        setDecisions(prev => prev.filter(x => x.id !== d.id))
+        addToast('Decision deleted', 'success')
+      } catch (e: any) {
+        addToast(e.message ?? 'Delete failed', 'error')
+      }
+    }
   }
 
   const saveDecision = async () => {
@@ -518,7 +669,7 @@ export function ProjectDecisionsPage() {
         })}
       </div>
 
-      {/* Table */}
+      {/* Table / Cards */}
       {filtered.length === 0 ? (
         <EmptyState
           title={`No ${TABS.find(t => t.key === tab)?.label.toLowerCase() ?? ''} decisions`}
@@ -526,64 +677,89 @@ export function ProjectDecisionsPage() {
           action={tab === 'active' ? { label: 'Add decision', onClick: () => setAddOpen(true) } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[580px]">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {/* Decision — not sortable by default but we offer alphabetical */}
-                  <th className="px-4 py-2.5 text-left">
-                    <button onClick={() => handleSort('content')} className="flex items-center gap-1 group">
-                      <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</span>
-                      <span className={`transition-colors ${sortCol === 'content' ? 'text-indigo-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
-                        {sortCol === 'content'
-                          ? sortDir === 'asc' ? <RiArrowUpSLine size={13} /> : <RiArrowDownSLine size={13} />
-                          : <RiArrowUpDownLine size={12} />}
-                      </span>
-                    </button>
-                  </th>
-                  <ColHeader label="Type"       col="type"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden sm:table-cell" />
-                  <ColHeader label="Date"       col="date"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell whitespace-nowrap">
-                    Source
-                  </th>
-                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell whitespace-nowrap">
-                    People
-                  </th>
-                  <th className="w-16" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(d => (
-                  <DecisionRow
-                    key={d.id}
-                    d={d}
-                    transcripts={transcripts}
-                    tab={tab}
-                    expanded={expanded === d.id}
-                    onToggle={() => setExpanded(expanded === d.id ? null : d.id)}
-                    onInlineAction={handleInlineAction}
-                    onMenu={(decision, e) => {
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      setMenuDecision(decision)
-                      setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 148 })
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Mobile card list — visible below md */}
+          <div className="md:hidden bg-white border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+            {filtered.map(d => (
+              <DecisionMobileCard
+                key={d.id}
+                d={d}
+                transcripts={transcripts}
+                tab={tab}
+                expanded={expanded === d.id}
+                onToggle={() => setExpanded(expanded === d.id ? null : d.id)}
+                onInlineAction={handleInlineAction}
+                onMenu={(decision, e) => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setMenuDecision(decision)
+                  setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 148 })
+                }}
+              />
+            ))}
+            <div className="px-4 py-2 bg-gray-50">
+              <p className="text-xs text-gray-400">
+                {filtered.length} {filtered.length === 1 ? 'decision' : 'decisions'}
+              </p>
+            </div>
           </div>
 
-          {/* Footer: row count */}
-          <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-gray-400">
-              {filtered.length} {filtered.length === 1 ? 'decision' : 'decisions'}
-              {sortCol !== 'date' || sortDir !== 'desc'
-                ? ` · sorted by ${sortCol} ${sortDir === 'asc' ? '↑' : '↓'}`
-                : ''}
-            </p>
+          {/* Desktop table — visible at md+ */}
+          <div className="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-4 py-2.5 text-left">
+                      <button onClick={() => handleSort('content')} className="flex items-center gap-1 group">
+                        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</span>
+                        <span className={`transition-colors ${sortCol === 'content' ? 'text-indigo-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
+                          {sortCol === 'content'
+                            ? sortDir === 'asc' ? <RiArrowUpSLine size={13} /> : <RiArrowDownSLine size={13} />
+                            : <RiArrowUpDownLine size={12} />}
+                        </span>
+                      </button>
+                    </th>
+                    <ColHeader label="Type"   col="type" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                    <ColHeader label="Date"   col="date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell whitespace-nowrap">
+                      Source
+                    </th>
+                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden xl:table-cell whitespace-nowrap">
+                      People
+                    </th>
+                    <th className="w-16" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filtered.map(d => (
+                    <DecisionRow
+                      key={d.id}
+                      d={d}
+                      transcripts={transcripts}
+                      tab={tab}
+                      expanded={expanded === d.id}
+                      onToggle={() => setExpanded(expanded === d.id ? null : d.id)}
+                      onInlineAction={handleInlineAction}
+                      onMenu={(decision, e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setMenuDecision(decision)
+                        setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 148 })
+                      }}
+                    />
+                  ))}
+                </tbody>
+            </table>
+
+            {/* Footer: row count */}
+            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+              <p className="text-xs text-gray-400">
+                {filtered.length} {filtered.length === 1 ? 'decision' : 'decisions'}
+                {sortCol !== 'date' || sortDir !== 'desc'
+                  ? ` · sorted by ${sortCol} ${sortDir === 'asc' ? '↑' : '↓'}`
+                  : ''}
+              </p>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Backdrop + context menu */}
@@ -626,17 +802,21 @@ export function ProjectDecisionsPage() {
             <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
             <Button
               disabled={!editText.trim() || editText.trim() === editDecision?.content}
-              loading={editSaving}
               onClick={async () => {
                 if (!editDecision || !editText.trim()) return
-                setEditSaving(true)
+                const trimmed = editText.trim()
+                const prev    = editDecision
+                // Optimistic
+                setDecisions(ds => ds.map(d => d.id === prev.id ? { ...d, content: trimmed } : d))
+                setEditDecision(null)
+                addToast('Decision updated', 'success')
                 try {
-                  const updated = await updateDecision(editDecision.id, { content: editText.trim() })
-                  setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
-                  setEditDecision(null)
-                  addToast('Decision updated', 'success')
-                } catch { addToast('Failed to update', 'error') }
-                finally { setEditSaving(false) }
+                  await updateDecision(prev.id, { content: trimmed })
+                } catch {
+                  // Revert on failure
+                  setDecisions(ds => ds.map(d => d.id === prev.id ? { ...d, content: prev.content } : d))
+                  addToast('Failed to save — changes reverted', 'error')
+                }
               }}
             >
               Save changes
