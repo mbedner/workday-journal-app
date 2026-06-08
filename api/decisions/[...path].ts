@@ -97,16 +97,10 @@ Each item must include all five fields:
 }
 
 async function callGemini(apiKey: string, body: object): Promise<Response> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 12_000)
-  try {
-    return await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }
-    )
-  } finally {
-    clearTimeout(timeout)
-  }
+  return fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  )
 }
 
 async function extractDecisionsFromContent(opts: {
@@ -139,20 +133,23 @@ async function extractDecisionsFromContent(opts: {
     const response = await callGemini(apiKey, geminiBody)
     const data = await response.json()
     if (!response.ok) {
-      console.error('decisions/extract: Gemini error', data?.error?.message ?? response.status)
-      return []
+      const msg = data?.error?.message ?? response.status
+      console.error('decisions/extract: Gemini API error', msg)
+      throw new Error(`Gemini API error: ${msg}`)
     }
 
     const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-    console.log(`decisions/extract: Gemini raw (${raw.length} chars):`, raw.slice(0, 200))
+    console.log(`decisions/extract: Gemini raw (${raw.length} chars):`, raw.slice(0, 300))
+
+    if (!raw) throw new Error('Gemini returned empty response')
 
     // Strip markdown code fences if present (```json ... ```)
     const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     const parsed = JSON.parse(jsonText)
     return Array.isArray(parsed) ? parsed : []
   } catch (err) {
-    console.error('decisions/extract: parse error', err)
-    return []
+    console.error('decisions/extract: error', err)
+    throw err  // propagate so callers can log the reason
   }
 }
 
@@ -163,7 +160,7 @@ async function runExtraction(opts: {
   sourceId:   string
   projectIds: string[]
   userId:     string
-}): Promise<{ extracted: number; skipped: number }> {
+}): Promise<{ extracted: number; skipped: number; debug: string }> {
   let extracted = 0
   let skipped   = 0
 
@@ -174,36 +171,47 @@ async function runExtraction(opts: {
 
   if (opts.sourceType === 'journal_entry') {
     const { data } = await supabase.from('journal_entries').select('*').eq('id', opts.sourceId).single()
-    if (!data) return { extracted: 0, skipped: 0 }
+    if (!data) return { extracted: 0, skipped: 0, debug: 'source not found' }
     content = [data.focus, data.accomplished, data.needs_attention, data.reflection]
       .filter(Boolean).join('\n\n')
     date = data.entry_date
   } else {
     const { data } = await supabase.from('transcripts').select('*').eq('id', opts.sourceId).single()
-    if (!data) return { extracted: 0, skipped: 0 }
+    if (!data) return { extracted: 0, skipped: 0, debug: 'source not found' }
     content   = data.raw_transcript ?? data.summary ?? ''
     date      = data.meeting_date ?? data.created_at?.slice(0, 10) ?? date
     attendees = data.attendees ?? ''
   }
 
-  if (!content.trim()) return { extracted: 0, skipped: 0 }
+  if (!content.trim()) return { extracted: 0, skipped: 0, debug: 'empty content' }
 
   // Run extraction per project
   for (const projectId of opts.projectIds) {
     const { data: proj } = await supabase.from('projects').select('name').eq('id', projectId).single()
     if (!proj) continue
 
-    const raw = await extractDecisionsFromContent({
-      content,
-      date,
-      projectName: proj.name,
-      attendees,
-    })
+    let raw: Awaited<ReturnType<typeof extractDecisionsFromContent>> = []
+    let geminiError = ''
+    try {
+      raw = await extractDecisionsFromContent({
+        content,
+        date,
+        projectName: proj.name,
+        attendees,
+      })
+    } catch (err: any) {
+      geminiError = err?.message ?? 'unknown error'
+      console.error(`runExtraction: Gemini failed for ${opts.sourceId}:`, geminiError)
+    }
 
-    // Hard guardrails: drop low-confidence noise, cap at 7 per source
+    if (geminiError) return { extracted: 0, skipped: 0, debug: `gemini error: ${geminiError}` }
+
+    // Hard guardrails: drop low-confidence noise, cap at 5 per source
     const candidates = raw
       .filter(c => c.confidence === 'high' || c.confidence === 'medium')
-      .slice(0, 7)
+      .slice(0, 5)
+
+    console.log(`runExtraction ${opts.sourceId}: content=${content.length}chars, raw=${raw.length}, candidates=${candidates.length}`)
 
     for (const c of candidates) {
       const dup = await isDuplicate(projectId, c.content)
@@ -227,7 +235,7 @@ async function runExtraction(opts: {
     }
   }
 
-  return { extracted, skipped }
+  return { extracted, skipped, debug: 'ok' }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -270,17 +278,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const remaining = Math.max(0, all.length - offset - rows.length)
       console.log(`backfill: ${all.length} total, offset=${offset}, running ${rows.length}, remaining after=${remaining}`)
 
+      // Run all extractions in parallel — faster and avoids sequential timeouts
+      const results = await Promise.allSettled(
+        rows.map(row => runExtraction({
+          sourceType: 'meeting_note', sourceId: row.transcript_id,
+          projectIds: [project_id], userId: user_id,
+        }))
+      )
+
+      const debugLog: string[] = []
       let totalExtracted = 0
       let totalSkipped   = 0
 
-      for (const row of rows) {
-        const r = await runExtraction({
-          sourceType: 'meeting_note', sourceId: row.transcript_id,
-          projectIds: [project_id], userId: user_id,
-        })
-        totalExtracted += r.extracted
-        totalSkipped   += r.skipped
-      }
+      results.forEach((r, i) => {
+        const id = rows[i].transcript_id
+        if (r.status === 'fulfilled') {
+          totalExtracted += r.value.extracted
+          totalSkipped   += r.value.skipped
+          debugLog.push(`${id}: extracted=${r.value.extracted} skipped=${r.value.skipped} (${r.value.debug})`)
+        } else {
+          debugLog.push(`${id}: FAILED — ${r.reason?.message ?? r.reason}`)
+        }
+      })
+
+      console.log('backfill results:', debugLog)
 
       return res.status(200).json({
         extracted: totalExtracted,
@@ -288,6 +309,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         remaining,
         nextOffset: offset + rows.length,
         status: remaining > 0 ? 'partial' : 'done',
+        debug: debugLog,
       })
     }
 
