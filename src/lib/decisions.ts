@@ -87,7 +87,7 @@ export function triggerExtraction(opts: {
 
 export async function purgeDecisionsBySource(
   projectId: string,
-  sourceType: 'journal_entry' | 'manual'
+  sourceType: 'journal_entry' | 'manual' | 'meeting_note'
 ): Promise<{ deleted: number }> {
   const res = await fetch(`${BASE}/purge`, {
     method:  'POST',

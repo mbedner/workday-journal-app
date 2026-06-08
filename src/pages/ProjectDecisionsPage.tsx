@@ -20,7 +20,7 @@ import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
-import { fetchDecisions, createDecision, updateDecision, deleteDecision } from '../lib/decisions'
+import { fetchDecisions, createDecision, updateDecision, deleteDecision, purgeDecisionsBySource } from '../lib/decisions'
 
 type Tab       = 'active' | 'pending_review' | 'superseded' | 'dismissed'
 type SortCol   = 'content' | 'type' | 'date'
@@ -465,6 +465,7 @@ export function ProjectDecisionsPage() {
   const [editDecision, setEditDecision] = useState<Decision | null>(null)
   const [editText,     setEditText]     = useState('')
 
+  const [purging,   setPurging]   = useState(false)
   const [addOpen,   setAddOpen]   = useState(false)
   const [content,   setContent]   = useState('')
   const [date,      setDate]      = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -503,6 +504,22 @@ export function ProjectDecisionsPage() {
   const reload = () => {
     if (!id) return
     fetchDecisions(id, undefined, 500).then(setDecisions).catch(() => {})
+  }
+
+  const handlePurge = async () => {
+    if (!id) return
+    const aiCount = decisions.filter(d => d.source_type === 'meeting_note').length
+    if (!window.confirm(`Delete all ${aiCount} AI-extracted decisions from meeting notes? Manual decisions will be kept. This can't be undone.`)) return
+    setPurging(true)
+    try {
+      const { deleted } = await purgeDecisionsBySource(id, 'meeting_note')
+      setDecisions(prev => prev.filter(d => d.source_type !== 'meeting_note'))
+      addToast(`Cleared ${deleted} AI decisions`, 'success')
+    } catch (e: any) {
+      addToast(e.message ?? 'Purge failed', 'error')
+    } finally {
+      setPurging(false)
+    }
   }
 
   const handleSort = (col: SortCol) => {
@@ -632,9 +649,19 @@ export function ProjectDecisionsPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => setAddOpen(true)}>
-            <RiAddLine size={14} /> Add decision
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={handlePurge}
+              loading={purging}
+              disabled={purging || decisions.filter(d => d.source_type === 'meeting_note').length === 0}
+            >
+              Clear AI decisions
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <RiAddLine size={14} /> Add decision
+            </Button>
+          </div>
         </div>
       </div>
 
