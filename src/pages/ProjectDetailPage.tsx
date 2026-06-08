@@ -97,38 +97,59 @@ function DecisionCard({ decision, journals, transcripts, onMenu }: {
   const isSuperseded = decision.status === 'superseded'
 
   return (
-    <div className={`px-4 py-3.5 ${isSuperseded ? 'opacity-50' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <p className={`text-sm text-gray-800 leading-snug flex-1 ${isSuperseded ? 'line-through text-gray-400' : ''}`}>
+    <div className={`px-4 py-4 flex items-start gap-3 ${isSuperseded ? 'opacity-40' : ''}`}>
+      <div className="flex-1 min-w-0 space-y-2">
+        {/* Decision statement */}
+        <p className={`text-sm font-medium leading-snug ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
           {decision.content}
         </p>
-        {onMenu && (
-          <button
-            onClick={e => onMenu(decision, e.currentTarget)}
-            className="shrink-0 p-1 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition"
-          >
-            <RiMoreLine size={15} />
-          </button>
-        )}
+
+        {/* Evidence blockquote */}
+        {decision.excerpt ? (
+          <div className="flex gap-2.5">
+            <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-2">
+                "{decision.excerpt}"
+              </p>
+              {sourceLabel && (
+                <Link
+                  to={sourceLabel.url}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline mt-0.5 inline-block font-medium"
+                >
+                  {sourceLabel.label}
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : sourceLabel ? (
+          <p className="text-xs text-gray-400">
+            From{' '}
+            <Link to={sourceLabel.url} className="text-indigo-500 hover:underline font-medium">
+              {sourceLabel.label}
+            </Link>
+          </p>
+        ) : null}
+
+        {/* Date + people */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-xs text-gray-400">{format(new Date(decision.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
+          {decision.people.map(p => (
+            <span key={p} className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">
+              {p}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-        <span className="text-xs text-gray-400">{format(new Date(decision.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
-
-        {sourceLabel && (
-          <Link to={sourceLabel.url} className="text-xs text-indigo-500 hover:underline">
-            From: {sourceLabel.label}
-          </Link>
-        )}
-
-        {isSuperseded && <Badge variant="gray">Superseded</Badge>}
-
-        {decision.people.map(p => (
-          <span key={p} className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">
-            {p}
-          </span>
-        ))}
-      </div>
+      {onMenu && (
+        <button
+          onClick={e => onMenu(decision, e.currentTarget)}
+          className="shrink-0 p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition mt-0.5"
+        >
+          <RiMoreLine size={15} />
+        </button>
+      )}
     </div>
   )
 }

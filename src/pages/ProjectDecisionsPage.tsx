@@ -5,12 +5,13 @@ import {
   RiAddLine,
   RiMoreLine,
   RiScalesLine,
+  RiCheckLine,
+  RiCloseLine,
 } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import { Decision, Project, JournalEntry, Transcript } from '../types'
+import { Decision, Project, Transcript } from '../types'
 import { Button } from '../components/ui/Button'
-import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
@@ -27,6 +28,133 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'dismissed',      label: 'Dismissed'  },
 ]
 
+const EMPTY_DESCRIPTIONS: Record<Tab, string> = {
+  active:         'Decisions are extracted automatically from meeting notes, or you can add one manually.',
+  pending_review: 'No decisions are waiting for review.',
+  superseded:     'Decisions that have been replaced by newer ones will appear here.',
+  dismissed:      'Dismissed decisions are kept for reference but hidden from the active view.',
+}
+
+function groupByMonth(decisions: Decision[]): Array<{ label: string; items: Decision[] }> {
+  const groups = new Map<string, Decision[]>()
+  for (const d of decisions) {
+    const key = format(new Date(d.date + 'T12:00:00'), 'MMMM yyyy')
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(d)
+  }
+  return [...groups.entries()].map(([label, items]) => ({ label, items }))
+}
+
+// ── Decision card ─────────────────────────────────────────────────────────────
+
+function DecisionCard({
+  d, transcripts, tab, onInlineAction, onMenu,
+}: {
+  d:              Decision
+  transcripts:    Transcript[]
+  tab:            Tab
+  onInlineAction: (action: 'activate' | 'dismiss', d: Decision) => void
+  onMenu:         (d: Decision, e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const src = (() => {
+    if (d.source_type !== 'meeting_note') return null
+    const t = transcripts.find(x => x.id === d.source_id)
+    return {
+      label: t?.meeting_title ?? 'Meeting note',
+      url:   `/transcripts/${d.source_id}`,
+    }
+  })()
+
+  const isPending    = tab === 'pending_review'
+  const isSuperseded = d.status === 'superseded'
+
+  return (
+    <div className={`px-4 py-4 flex items-start gap-3 ${isPending ? 'border-l-[3px] border-amber-400' : ''}`}>
+      <div className={`flex-1 min-w-0 space-y-2 ${isSuperseded ? 'opacity-40' : ''}`}>
+
+        {/* Decision statement */}
+        <p className={`text-sm font-medium leading-snug ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+          {d.content}
+        </p>
+
+        {/* Evidence blockquote */}
+        {d.excerpt ? (
+          <div className="flex gap-2.5">
+            <div className="w-0.5 rounded-full bg-gray-200 shrink-0 self-stretch" />
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 italic leading-relaxed line-clamp-3">
+                "{d.excerpt}"
+              </p>
+              {src && (
+                <Link
+                  to={src.url}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline mt-0.5 inline-block font-medium"
+                >
+                  {src.label}
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : src ? (
+          /* No excerpt but has a source — show source inline */
+          <p className="text-xs text-gray-400">
+            From{' '}
+            <Link to={src.url} className="text-indigo-500 hover:underline font-medium">
+              {src.label}
+            </Link>
+          </p>
+        ) : null}
+
+        {/* Meta row: date + people */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-xs text-gray-400">
+            {format(new Date(d.date + 'T12:00:00'), 'MMM d, yyyy')}
+          </span>
+          {d.people.map(p => (
+            <span
+              key={p}
+              className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600"
+            >
+              {p}
+            </span>
+          ))}
+          {d.notes && (
+            <span className="text-xs text-gray-400 italic">{d.notes}</span>
+          )}
+        </div>
+
+        {/* Pending: inline confirm / dismiss */}
+        {isPending && (
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              onClick={() => onInlineAction('activate', d)}
+              className="inline-flex items-center gap-1 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-2.5 py-1 rounded-md transition-colors"
+            >
+              <RiCheckLine size={11} /> Confirm
+            </button>
+            <button
+              onClick={() => onInlineAction('dismiss', d)}
+              className="inline-flex items-center gap-1 text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 font-medium px-2.5 py-1 rounded-md transition-colors"
+            >
+              <RiCloseLine size={11} /> Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Overflow menu */}
+      <button
+        onClick={e => onMenu(d, e)}
+        className="shrink-0 p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition mt-0.5"
+      >
+        <RiMoreLine size={15} />
+      </button>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export function ProjectDecisionsPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -34,7 +162,6 @@ export function ProjectDecisionsPage() {
 
   const [project,     setProject]     = useState<Project | null>(null)
   const [decisions,   setDecisions]   = useState<Decision[]>([])
-  const [journals,    setJournals]    = useState<JournalEntry[]>([])
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [loading,     setLoading]     = useState(true)
   const [userId,      setUserId]      = useState('')
@@ -45,10 +172,10 @@ export function ProjectDecisionsPage() {
   const [menuAnchor,   setMenuAnchor]   = useState<{ top: number; left: number } | null>(null)
 
   // Add form
-  const [content,  setContent]  = useState('')
-  const [date,     setDate]     = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [people,   setPeople]   = useState('')
-  const [notes,    setNotes]    = useState('')
+  const [content,   setContent]   = useState('')
+  const [date,      setDate]      = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [people,    setPeople]    = useState('')
+  const [notes,     setNotes]     = useState('')
   const [addSaving, setAddSaving] = useState(false)
 
   useEffect(() => {
@@ -61,29 +188,19 @@ export function ProjectDecisionsPage() {
 
     Promise.all([
       supabase.from('projects').select('*').eq('id', id).single(),
-      supabase.from('journal_entry_projects').select('journal_entry_id').eq('project_id', id),
       supabase.from('transcript_projects').select('transcript_id').eq('project_id', id),
-    ]).then(async ([{ data: proj }, { data: jp }, { data: xp }]) => {
+    ]).then(async ([{ data: proj }, { data: xp }]) => {
       if (!proj) { navigate('/projects'); return }
       setProject(proj)
 
-      const journalIds    = (jp ?? []).map((r: any) => r.journal_entry_id)
       const transcriptIds = (xp ?? []).map((r: any) => r.transcript_id)
-
-      const [journalRes, transcriptRes] = await Promise.all([
-        journalIds.length
-          ? supabase.from('journal_entries').select('id, entry_date').in('id', journalIds)
-          : Promise.resolve({ data: [] }),
-        transcriptIds.length
-          ? supabase.from('transcripts').select('id, meeting_title').in('id', transcriptIds)
-          : Promise.resolve({ data: [] }),
-      ])
-
-      setJournals((journalRes.data ?? []) as JournalEntry[])
-      setTranscripts((transcriptRes.data ?? []) as Transcript[])
+      if (transcriptIds.length) {
+        const { data } = await supabase
+          .from('transcripts').select('id, meeting_title').in('id', transcriptIds)
+        setTranscripts((data ?? []) as Transcript[])
+      }
 
       const all = await fetchDecisions(id, undefined, 500)
-      // include all statuses
       setDecisions(all)
       setLoading(false)
     })
@@ -94,15 +211,13 @@ export function ProjectDecisionsPage() {
     fetchDecisions(id, undefined, 500).then(setDecisions).catch(() => {})
   }
 
-  const sourceLabel = (d: Decision): { label: string; url: string } | null => {
-    if (d.source_type === 'manual') return null
-    if (d.source_type === 'journal_entry') {
-      const entry = journals.find(j => j.id === d.source_id)
-      const dateStr = entry?.entry_date ?? d.date
-      return { label: `Journal · ${format(new Date(dateStr + 'T12:00:00'), 'MMM d, yyyy')}`, url: `/journal/${dateStr}` }
+  const handleInlineAction = async (action: 'activate' | 'dismiss', d: Decision) => {
+    try {
+      await updateDecision(d.id, { status: action === 'activate' ? 'active' : 'dismissed' })
+      reload()
+    } catch {
+      addToast('Action failed', 'error')
     }
-    const t = transcripts.find(x => x.id === d.source_id)
-    return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${d.source_id}` }
   }
 
   const handleMenuAction = async (action: string) => {
@@ -111,18 +226,18 @@ export function ProjectDecisionsPage() {
     try {
       if (action === 'edit') {
         const text = window.prompt('Edit decision:', menuDecision.content)
-        if (text && text.trim()) {
+        if (text?.trim()) {
           const updated = await updateDecision(menuDecision.id, { content: text.trim() })
           setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
         }
+      } else if (action === 'activate') {
+        await updateDecision(menuDecision.id, { status: 'active' })
+        reload()
       } else if (action === 'supersede') {
         await updateDecision(menuDecision.id, { status: 'superseded' })
         reload()
       } else if (action === 'dismiss') {
         await updateDecision(menuDecision.id, { status: 'dismissed' })
-        reload()
-      } else if (action === 'activate') {
-        await updateDecision(menuDecision.id, { status: 'active' })
         reload()
       } else if (action === 'delete') {
         if (!window.confirm('Delete this decision permanently?')) return
@@ -159,37 +274,33 @@ export function ProjectDecisionsPage() {
     }
   }
 
-  const filtered = decisions.filter(d => d.status === tab)
-
-  const statusBadge = (d: Decision) => {
-    if (d.status === 'active')         return <Badge variant="green">Active</Badge>
-    if (d.status === 'pending_review') return <Badge variant="yellow">Pending review</Badge>
-    if (d.status === 'superseded')     return <Badge variant="gray">Superseded</Badge>
-    if (d.status === 'dismissed')      return <Badge variant="gray">Dismissed</Badge>
-    return null
-  }
-
   const menuItems = (d: Decision) => {
     const items = [{ key: 'edit', label: 'Edit' }]
     if (d.status === 'active')               items.push({ key: 'supersede', label: 'Mark as superseded' })
-    if (d.status !== 'dismissed')            items.push({ key: 'dismiss', label: 'Dismiss' })
-    if (d.status === 'dismissed')            items.push({ key: 'activate', label: 'Restore to active' })
+    if (d.status !== 'dismissed')            items.push({ key: 'dismiss',   label: 'Dismiss' })
+    if (d.status === 'dismissed' || d.status === 'superseded') items.push({ key: 'activate', label: 'Restore to active' })
     if (d.source_type === 'manual' || d.status === 'dismissed') items.push({ key: 'delete', label: 'Delete' })
     return items
   }
+
+  const filtered = decisions.filter(d => d.status === tab)
+  const grouped  = groupByMonth(filtered)
 
   if (loading) return (
     <div className="space-y-6 animate-pulse">
       <div className="h-4 w-32 bg-gray-200 rounded" />
       <div className="h-8 w-64 bg-gray-200 rounded" />
       <div className="space-y-3">
-        {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl" />)}
+        {[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-gray-100 rounded-xl" />)}
       </div>
     </div>
   )
 
   return (
-    <div className="space-y-6" onClick={() => { if (menuAnchor) { setMenuAnchor(null); setMenuDecision(null) } }}>
+    <div
+      className="space-y-6"
+      onClick={() => { if (menuAnchor) { setMenuAnchor(null); setMenuDecision(null) } }}
+    >
       {/* Header */}
       <div>
         <Link
@@ -205,7 +316,9 @@ export function ProjectDecisionsPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">{project?.name} — Decisions</h1>
-              <p className="text-sm text-gray-500">{decisions.filter(d => d.status === 'active').length} active decisions</p>
+              <p className="text-sm text-gray-500">
+                {decisions.filter(d => d.status === 'active').length} active decisions
+              </p>
             </div>
           </div>
           <Button onClick={() => setAddOpen(true)}>
@@ -231,7 +344,11 @@ export function ProjectDecisionsPage() {
               {t.label}
               {count > 0 && (
                 <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                  tab === t.key ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'
+                  tab === t.key
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : t.key === 'pending_review'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-gray-100 text-gray-500'
                 }`}>
                   {count}
                 </span>
@@ -241,51 +358,45 @@ export function ProjectDecisionsPage() {
         })}
       </div>
 
-      {/* Decision list */}
+      {/* Decision list — grouped by month */}
       {filtered.length === 0 ? (
         <EmptyState
-          title={`No ${(TABS.find(t => t.key === tab)?.label ?? '').toLowerCase()} decisions`}
-          description={tab === 'active' ? 'Decisions are extracted automatically from journal entries and meeting notes, or you can add one manually.' : 'Nothing here yet.'}
+          title={`No ${TABS.find(t => t.key === tab)?.label.toLowerCase() ?? ''} decisions`}
+          description={EMPTY_DESCRIPTIONS[tab]}
           action={tab === 'active' ? { label: 'Add decision', onClick: () => setAddOpen(true) } : undefined}
         />
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
-          {filtered.map(d => {
-            const src = sourceLabel(d)
-            const isSuperseded = d.status === 'superseded'
-            return (
-              <div key={d.id} className={`px-4 py-4 flex items-start gap-3 ${isSuperseded ? 'opacity-50' : ''}`}>
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <p className={`text-sm text-gray-800 leading-snug ${isSuperseded ? 'line-through text-gray-400' : ''}`}>
-                    {d.content}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="text-xs text-gray-400">{format(new Date(d.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
-                    {src && (
-                      <Link to={src.url} className="text-xs text-indigo-500 hover:underline">
-                        From: {src.label}
-                      </Link>
-                    )}
-                    {statusBadge(d)}
-                    {d.people.map(p => (
-                      <span key={p} className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">{p}</span>
-                    ))}
-                  </div>
-                  {d.notes && <p className="text-xs text-gray-400 italic">{d.notes}</p>}
-                </div>
-                <button
-                  onClick={e => {
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setMenuDecision(d)
-                    setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 140 })
-                  }}
-                  className="shrink-0 p-1.5 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition"
-                >
-                  <RiMoreLine size={15} />
-                </button>
+        <div className="space-y-6">
+          {grouped.map(({ label, items }) => (
+            <div key={label}>
+              {/* Month header */}
+              <div className="flex items-center gap-3 mb-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
+                  {label}
+                </p>
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-300 shrink-0">{items.length}</span>
               </div>
-            )
-          })}
+
+              {/* Cards */}
+              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                {items.map(d => (
+                  <DecisionCard
+                    key={d.id}
+                    d={d}
+                    transcripts={transcripts}
+                    tab={tab}
+                    onInlineAction={handleInlineAction}
+                    onMenu={(decision, e) => {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      setMenuDecision(decision)
+                      setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 148 })
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -300,7 +411,9 @@ export function ProjectDecisionsPage() {
             <button
               key={item.key}
               onClick={() => handleMenuAction(item.key)}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${item.key === 'delete' ? 'text-red-600' : 'text-gray-700'}`}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                item.key === 'delete' ? 'text-red-600' : 'text-gray-700'
+              }`}
             >
               {item.label}
             </button>
@@ -315,7 +428,7 @@ export function ProjectDecisionsPage() {
             label="Decision"
             value={content}
             onChange={e => setContent(e.target.value)}
-            placeholder='e.g. The MVP will not replace the existing search experience'
+            placeholder="e.g. The MVP will not replace the existing search experience"
             rows={3}
             autoFocus
           />
@@ -341,7 +454,9 @@ export function ProjectDecisionsPage() {
           />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={saveDecision} loading={addSaving} disabled={!content.trim()}>Add decision</Button>
+            <Button onClick={saveDecision} loading={addSaving} disabled={!content.trim()}>
+              Add decision
+            </Button>
           </div>
         </div>
       </Modal>

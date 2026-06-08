@@ -50,19 +50,23 @@ async function isDuplicate(projectId: string, content: string): Promise<boolean>
 
 // ── Gemini extraction ─────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are analyzing a work log entry to extract decisions.
+function buildSystemPrompt(projectName: string): string {
+  return `You are analyzing a meeting note to identify decisions specifically about the "${projectName}" project.
 
-A decision is something the author or their team committed to, agreed on, moved toward, or explicitly ruled out. Look for signals like: "we decided", "the team agreed", "going forward", "the plan is", "we ruled out", "we're deprioritizing", "the MVP will/won't", "we're moving toward."
+CRITICAL FILTER: This meeting may cover multiple projects and topics. You must ONLY extract decisions that directly concern the "${projectName}" project. If a decision is about a different project, a general team matter, or an unrelated topic, do not include it.
 
-Do NOT extract observations, aspirations, or things still under discussion. Only extract things that were resolved or committed to.
+A decision is something the team committed to, agreed on, moved forward on, or explicitly ruled out — and it must be specifically relevant to "${projectName}". Look for signals like: "we decided", "the team agreed", "going forward", "the plan is", "we ruled out", "we're deprioritizing", "the MVP will/won't", "we're moving toward."
 
-Return a JSON array. If no decisions are found, return []. Each item:
+Do NOT extract: observations, aspirations, things still under discussion, or decisions that belong to other projects.
+
+Return a JSON array. If no decisions relevant to "${projectName}" are found, return []. Each item:
 {
   "content": "concise present-tense statement of the decision",
   "confidence": "high" | "medium" | "low",
   "people": ["first and last names mentioned in context of this decision"],
-  "excerpt": "the sentence or phrase from the source that led to this extraction"
+  "excerpt": "the exact sentence or phrase from the source that led to this extraction"
 }`
+}
 
 async function extractDecisionsFromContent(opts: {
   content:      string
@@ -88,7 +92,7 @@ async function extractDecisionsFromContent(opts: {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          systemInstruction: { parts: [{ text: buildSystemPrompt(opts.projectName) }] },
           contents:          [{ role: 'user', parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature:    0.1,
