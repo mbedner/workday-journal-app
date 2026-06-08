@@ -2,10 +2,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Supabase (service role — bypasses RLS for server-side ops) ────────────────
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Env var names match the rest of the codebase (SUPABASE_URL / SUPABASE_SERVICE_KEY),
+// with VITE_ fallbacks for local dev where only those keys exist in .env.
+const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? ''
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 const MAX_CHARS    = 14_000
@@ -90,22 +91,29 @@ async function extractDecisionsFromContent(opts: {
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents:          [{ role: 'user', parts: [{ text: userPrompt }] }],
           generationConfig: {
-            temperature:      0.1,
-            maxOutputTokens:  2048,
-            responseMimeType: 'application/json',
-            thinkingConfig:   { thinkingBudget: 0 },
+            temperature:    0.1,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       }
     )
 
     const data = await response.json()
-    if (!response.ok) return []
+    if (!response.ok) {
+      console.error('decisions/extract: Gemini error', data?.error?.message ?? response.status)
+      return []
+    }
 
     const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim()
-    const parsed = JSON.parse(raw)
+    console.log(`decisions/extract: Gemini raw (${raw.length} chars):`, raw.slice(0, 200))
+
+    // Strip markdown code fences if present (```json ... ```)
+    const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const parsed = JSON.parse(jsonText)
     return Array.isArray(parsed) ? parsed : []
-  } catch {
+  } catch (err) {
+    console.error('decisions/extract: parse error', err)
     return []
   }
 }

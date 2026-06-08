@@ -44,6 +44,11 @@ const ROUTES: Record<string, string> = {
   '/api/gpt/reflections':      '../api/gpt/_reflections.ts',
 }
 
+// Catch-all prefix routes: any path starting with the key goes to the module
+const PREFIX_ROUTES: Record<string, string> = {
+  '/api/decisions': '../api/decisions/[...path].ts',
+}
+
 /** Parse query string into an object (same shape as VercelRequest.query) */
 function parseQuery(rawUrl: string): Record<string, string> {
   const parsed = new URL(rawUrl, 'http://localhost')
@@ -59,7 +64,7 @@ function makeAdapter(
   body: unknown,
   query: Record<string, string>,
 ) {
-  const req = { method: nodeReq.method, body, query, headers: nodeReq.headers }
+  const req = { method: nodeReq.method, body, query, headers: nodeReq.headers, url: nodeReq.url ?? '/' }
 
   const res = {
     _code: 200,
@@ -92,7 +97,7 @@ createServer(async (nodeReq, nodeRes) => {
     nodeRes.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     })
     nodeRes.end()
     return
@@ -101,7 +106,10 @@ createServer(async (nodeReq, nodeRes) => {
   const rawUrl   = nodeReq.url ?? '/'
   const pathname = rawUrl.split('?')[0]
   const query    = parseQuery(rawUrl)
+
+  // Exact match first, then prefix catch-all routes
   const modulePath = ROUTES[pathname]
+    ?? Object.entries(PREFIX_ROUTES).find(([prefix]) => pathname.startsWith(prefix))?.[1]
 
   if (!modulePath) {
     nodeRes.writeHead(404, { 'Content-Type': 'application/json' })
