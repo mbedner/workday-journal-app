@@ -474,8 +474,15 @@ export function ProjectDetailPage() {
     if (!id || !userId) return
     setBackfilling(true)
     try {
-      const { extracted } = await backfillDecisions(id, userId)
-      addToast(`Backfill complete · ${extracted} decision${extracted !== 1 ? 's' : ''} extracted`, 'success')
+      const { extracted, remaining } = await backfillDecisions(id, userId)
+      const msg = extracted === 0 && remaining === 0
+        ? 'All notes scanned · no new decisions found'
+        : extracted === 0 && remaining > 0
+          ? `No decisions in this batch · ${remaining} note${remaining !== 1 ? 's' : ''} remaining — scan again`
+          : remaining > 0
+            ? `${extracted} decision${extracted !== 1 ? 's' : ''} extracted · ${remaining} note${remaining !== 1 ? 's' : ''} remaining — scan again`
+            : `${extracted} decision${extracted !== 1 ? 's' : ''} extracted · all notes scanned`
+      addToast(msg, 'success')
       reloadDecisions()
     } catch (e: any) {
       addToast(e.message ?? 'Backfill failed', 'error')

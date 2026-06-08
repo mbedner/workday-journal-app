@@ -101,7 +101,7 @@ export async function purgeDecisionsBySource(
 
 // ── Backfill ──────────────────────────────────────────────────────────────────
 
-export async function backfillDecisions(projectId: string, userId: string): Promise<{ extracted: number; skipped: number }> {
+export async function backfillDecisions(projectId: string, userId: string): Promise<{ extracted: number; skipped: number; remaining: number }> {
   const res  = await fetch(`${BASE}/backfill`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
