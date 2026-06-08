@@ -97,20 +97,11 @@ Each item must include all five fields:
 }`
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-async function callGemini(apiKey: string, body: object, attempt = 0): Promise<Response> {
-  const response = await fetch(
+async function callGemini(apiKey: string, body: object): Promise<Response> {
+  return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   )
-  // Retry once on rate-limit / overload (429 or 503)
-  if (!response.ok && attempt === 0 && (response.status === 429 || response.status === 503)) {
-    console.log(`decisions/extract: rate-limited (${response.status}), retrying in 3s…`)
-    await sleep(3000)
-    return callGemini(apiKey, body, 1)
-  }
-  return response
 }
 
 async function extractDecisionsFromContent(opts: {
@@ -265,15 +256,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let totalExtracted = 0
       let totalSkipped   = 0
 
-      for (const row of (tp ?? [])) {
+      // Process most-recent 15 transcripts per run to stay within function timeout.
+      // Deduplication makes it safe to run again for older notes.
+      const rows = (tp ?? []).slice(-15)
+      for (const row of rows) {
         const r = await runExtraction({
           sourceType: 'meeting_note', sourceId: row.transcript_id,
           projectIds: [project_id], userId: user_id,
         })
         totalExtracted += r.extracted
         totalSkipped   += r.skipped
-        // Small pause between calls to avoid hitting Gemini rate limits
-        await sleep(500)
       }
 
       return res.status(200).json({ extracted: totalExtracted, skipped: totalSkipped, status: 'done' })
