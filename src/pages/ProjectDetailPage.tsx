@@ -751,7 +751,7 @@ export function ProjectDetailPage() {
                   variant="secondary"
                   size="sm"
                   onClick={handleBackfill}
-                  loading={backfilling}
+                  disabled={backfilling}
                   title="Scan all existing journal entries and meeting notes for decisions"
                 >
                   {backfilling ? <><RiLoader4Line size={14} className="animate-spin" /> Scanning…</> : 'Scan existing entries'}

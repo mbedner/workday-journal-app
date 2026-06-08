@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import { triggerExtraction } from '../lib/decisions'
 import { JournalEntry } from '../types'
 import { Button } from '../components/ui/Button'
 import { StarRating } from '../components/ui/StarRating'
@@ -143,11 +142,6 @@ export function JournalDetailPage() {
         if (projRows.length) await supabase.from('journal_entry_projects').insert(projRows)
         if (tagRows.length) await supabase.from('journal_entry_tags').insert(tagRows)
 
-        // Trigger decision extraction (fire-and-forget — never blocks save)
-        const validProjectIds = projectIds.filter(Boolean) as string[]
-        if (validProjectIds.length > 0) {
-          triggerExtraction({ sourceType: 'journal_entry', sourceId: id!, projectIds: validProjectIds, userId: user!.id })
-        }
       }
 
       addToast('Journal saved', 'success')

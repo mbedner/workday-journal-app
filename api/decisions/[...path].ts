@@ -214,23 +214,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { project_id, user_id } = req.body ?? {}
       if (!project_id || !user_id) return res.status(400).json({ error: 'project_id and user_id required' })
 
-      // Gather all journal entries and meeting notes for this project
-      const [{ data: jp }, { data: tp }] = await Promise.all([
-        supabase.from('journal_entry_projects').select('journal_entry_id').eq('project_id', project_id),
-        supabase.from('transcript_projects').select('transcript_id').eq('project_id', project_id),
-      ])
+      // Decisions are extracted from meeting notes only
+      const { data: tp } = await supabase
+        .from('transcript_projects').select('transcript_id').eq('project_id', project_id)
 
       let totalExtracted = 0
       let totalSkipped   = 0
-
-      for (const row of (jp ?? [])) {
-        const r = await runExtraction({
-          sourceType: 'journal_entry', sourceId: row.journal_entry_id,
-          projectIds: [project_id], userId: user_id,
-        })
-        totalExtracted += r.extracted
-        totalSkipped   += r.skipped
-      }
 
       for (const row of (tp ?? [])) {
         const r = await runExtraction({
