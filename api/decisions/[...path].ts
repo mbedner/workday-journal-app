@@ -97,6 +97,22 @@ Each item must include all five fields:
 }`
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+async function callGemini(apiKey: string, body: object, attempt = 0): Promise<Response> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+  )
+  // Retry once on rate-limit / overload (429 or 503)
+  if (!response.ok && attempt === 0 && (response.status === 429 || response.status === 503)) {
+    console.log(`decisions/extract: rate-limited (${response.status}), retrying in 3s…`)
+    await sleep(3000)
+    return callGemini(apiKey, body, 1)
+  }
+  return response
+}
+
 async function extractDecisionsFromContent(opts: {
   content:      string
   date:         string
@@ -114,24 +130,18 @@ async function extractDecisionsFromContent(opts: {
     `Content:\n${stripped}`,
   ].join('\n')
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          systemInstruction: { parts: [{ text: buildSystemPrompt(opts.projectName) }] },
-          contents:          [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature:    0.1,
-            maxOutputTokens: 2048,
-            thinkingConfig: { thinkingBudget: 0 },
-          },
-        }),
-      }
-    )
+  const geminiBody = {
+    systemInstruction: { parts: [{ text: buildSystemPrompt(opts.projectName) }] },
+    contents:          [{ role: 'user', parts: [{ text: userPrompt }] }],
+    generationConfig: {
+      temperature:    0.1,
+      maxOutputTokens: 2048,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  }
 
+  try {
+    const response = await callGemini(apiKey, geminiBody)
     const data = await response.json()
     if (!response.ok) {
       console.error('decisions/extract: Gemini error', data?.error?.message ?? response.status)
@@ -262,6 +272,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
         totalExtracted += r.extracted
         totalSkipped   += r.skipped
+        // Small pause between calls to avoid hitting Gemini rate limits
+        await sleep(500)
       }
 
       return res.status(200).json({ extracted: totalExtracted, skipped: totalSkipped, status: 'done' })
