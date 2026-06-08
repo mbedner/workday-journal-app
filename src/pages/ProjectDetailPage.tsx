@@ -367,7 +367,8 @@ export function ProjectDetailPage() {
   const [userId,      setUserId]      = useState<string>('')
 
   // Backfill / cleanup
-  const [backfilling, setBackfilling] = useState(false)
+  const [backfilling,    setBackfilling]    = useState(false)
+  const [backfillOffset, setBackfillOffset] = useState(0)
   const [cleaning,    setCleaning]    = useState(false)
 
   // Edit project modal
@@ -474,14 +475,17 @@ export function ProjectDetailPage() {
     if (!id || !userId) return
     setBackfilling(true)
     try {
-      const { extracted, remaining } = await backfillDecisions(id, userId)
-      const msg = extracted === 0 && remaining === 0
-        ? 'All notes scanned · no new decisions found'
-        : extracted === 0 && remaining > 0
-          ? `No decisions in this batch · ${remaining} note${remaining !== 1 ? 's' : ''} remaining — scan again`
-          : remaining > 0
-            ? `${extracted} decision${extracted !== 1 ? 's' : ''} extracted · ${remaining} note${remaining !== 1 ? 's' : ''} remaining — scan again`
-            : `${extracted} decision${extracted !== 1 ? 's' : ''} extracted · all notes scanned`
+      const { extracted, remaining, nextOffset } = await backfillDecisions(id, userId, backfillOffset)
+      if (remaining > 0) {
+        setBackfillOffset(nextOffset)
+      } else {
+        setBackfillOffset(0)
+      }
+      const msg = remaining > 0
+        ? `${extracted} decision${extracted !== 1 ? 's' : ''} found · ${remaining} note${remaining !== 1 ? 's' : ''} left — scan again`
+        : extracted > 0
+          ? `${extracted} decision${extracted !== 1 ? 's' : ''} found · all notes scanned`
+          : 'All notes scanned · no new decisions found'
       addToast(msg, 'success')
       reloadDecisions()
     } catch (e: any) {

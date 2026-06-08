@@ -260,31 +260,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── POST /api/decisions/backfill ────────────────────────────────────────
     if (req.method === 'POST' && rest[0] === 'backfill') {
-      const { project_id, user_id } = req.body ?? {}
+      const { project_id, user_id, offset = 0 } = req.body ?? {}
       if (!project_id || !user_id) return res.status(400).json({ error: 'project_id and user_id required' })
 
-      // Decisions are extracted from meeting notes only
+      // Fetch all transcripts for this project in a stable order
       const { data: tp } = await supabase
-        .from('transcript_projects').select('transcript_id').eq('project_id', project_id)
-
-      // Find transcripts already processed (have at least one decision extracted)
-      const { data: done } = await supabase
-        .from('decisions')
-        .select('source_id')
+        .from('transcript_projects')
+        .select('transcript_id')
         .eq('project_id', project_id)
-        .eq('source_type', 'meeting_note')
-      const processedIds = new Set((done ?? []).map((r: any) => r.source_id))
+        .order('transcript_id')
 
-      // Only process transcripts that haven't been scanned yet
-      const unprocessed = (tp ?? []).filter(r => !processedIds.has(r.transcript_id))
+      const all  = tp ?? []
+      const rows = all.slice(offset, offset + 5)
+      const remaining = Math.max(0, all.length - offset - rows.length)
+      console.log(`backfill: ${all.length} total, offset=${offset}, running ${rows.length}, remaining after=${remaining}`)
 
       let totalExtracted = 0
       let totalSkipped   = 0
-
-      // Process up to 5 at a time to stay well under the 60s limit.
-      // Each Gemini call has a 12s timeout. Run again to process more.
-      const rows = unprocessed.slice(0, 5)
-      console.log(`backfill: ${(tp ?? []).length} total, ${unprocessed.length} unprocessed, running ${rows.length}`)
 
       for (const row of rows) {
         const r = await runExtraction({
@@ -295,8 +287,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalSkipped   += r.skipped
       }
 
-      const remaining = unprocessed.length - rows.length
-      return res.status(200).json({ extracted: totalExtracted, skipped: totalSkipped, remaining, status: remaining > 0 ? 'partial' : 'done' })
+      return res.status(200).json({
+        extracted: totalExtracted,
+        skipped:   totalSkipped,
+        remaining,
+        nextOffset: offset + rows.length,
+        status: remaining > 0 ? 'partial' : 'done',
+      })
     }
 
     // ── POST /api/decisions/purge ───────────────────────────────────────────

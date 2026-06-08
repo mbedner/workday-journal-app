@@ -101,11 +101,15 @@ export async function purgeDecisionsBySource(
 
 // ── Backfill ──────────────────────────────────────────────────────────────────
 
-export async function backfillDecisions(projectId: string, userId: string): Promise<{ extracted: number; skipped: number; remaining: number }> {
+export async function backfillDecisions(
+  projectId: string,
+  userId: string,
+  offset = 0,
+): Promise<{ extracted: number; skipped: number; remaining: number; nextOffset: number }> {
   const res  = await fetch(`${BASE}/backfill`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ project_id: projectId, user_id: userId }),
+    body:    JSON.stringify({ project_id: projectId, user_id: userId, offset }),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.error ?? 'Backfill failed')
