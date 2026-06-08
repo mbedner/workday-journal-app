@@ -8,7 +8,7 @@ const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ??
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? ''
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_MODEL = 'gemini-1.5-flash'
 const MAX_CHARS    = 14_000
 
 // ── Route helpers ─────────────────────────────────────────────────────────────
