@@ -23,7 +23,7 @@ import { useToast } from '../contexts/ToastContext'
 import { fetchDecisions, createDecision, updateDecision, deleteDecision } from '../lib/decisions'
 
 type Tab       = 'active' | 'pending_review' | 'superseded' | 'dismissed'
-type SortCol   = 'content' | 'type' | 'date' | 'confidence'
+type SortCol   = 'content' | 'type' | 'date'
 type SortDir   = 'asc' | 'desc'
 
 const TABS: { key: Tab; label: string }[] = [
@@ -41,15 +41,12 @@ const EMPTY_DESCRIPTIONS: Record<Tab, string> = {
 }
 
 const TYPE_ORDER: Record<string, number>  = { strategic: 0, tactical: 1, operational: 2 }
-const CONF_ORDER: Record<string, number>  = { high: 0, medium: 1, low: 2 }
-
 function sortDecisions(decisions: Decision[], col: SortCol, dir: SortDir): Decision[] {
   return [...decisions].sort((a, b) => {
     let cmp = 0
-    if (col === 'content')    cmp = a.content.localeCompare(b.content)
-    if (col === 'date')       cmp = a.date.localeCompare(b.date)
-    if (col === 'type')       cmp = (TYPE_ORDER[a.type ?? ''] ?? 9) - (TYPE_ORDER[b.type ?? ''] ?? 9)
-    if (col === 'confidence') cmp = (CONF_ORDER[a.confidence ?? ''] ?? 9) - (CONF_ORDER[b.confidence ?? ''] ?? 9)
+    if (col === 'content') cmp = a.content.localeCompare(b.content)
+    if (col === 'date')    cmp = a.date.localeCompare(b.date)
+    if (col === 'type')    cmp = (TYPE_ORDER[a.type ?? ''] ?? 9) - (TYPE_ORDER[b.type ?? ''] ?? 9)
     return dir === 'asc' ? cmp : -cmp
   })
 }
@@ -93,24 +90,6 @@ function TypeBadge({ type }: { type: Decision['type'] }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${TYPE_STYLES[type] ?? 'bg-gray-100 text-gray-600'}`}>
       {type}
-    </span>
-  )
-}
-
-// ── Confidence badge ──────────────────────────────────────────────────────────
-
-const CONF_STYLES: Record<string, string> = {
-  high:   'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  medium: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-  low:    'bg-red-50 text-red-600 ring-1 ring-red-200',
-}
-
-function ConfBadge({ confidence }: { confidence: Decision['confidence'] }) {
-  if (!confidence) return <span className="text-gray-300 text-xs">—</span>
-  const label = confidence === 'medium' ? 'Med' : confidence.charAt(0).toUpperCase() + confidence.slice(1)
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium ${CONF_STYLES[confidence] ?? 'bg-gray-100 text-gray-600'}`}>
-      {label}
     </span>
   )
 }
@@ -194,11 +173,6 @@ function DecisionRow({
           )}
         </td>
 
-        {/* Confidence */}
-        <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
-          <ConfBadge confidence={d.confidence} />
-        </td>
-
         {/* People */}
         <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
           {abbrevPeople.length > 0 ? (
@@ -246,7 +220,7 @@ function DecisionRow({
       {/* Expanded row — excerpt + mobile-hidden metadata */}
       {expanded && (
         <tr className={isPending ? 'bg-amber-50/20' : 'bg-gray-50/40'}>
-          <td colSpan={7} className="px-4 pb-4 pt-1">
+          <td colSpan={6} className="px-4 pb-4 pt-1">
             <div className="ml-5 space-y-2.5">
 
               {/* Excerpt blockquote */}
@@ -271,7 +245,6 @@ function DecisionRow({
               {/* Mobile: show columns that are hidden on small screens */}
               <div className="flex flex-wrap items-center gap-2 sm:hidden">
                 <TypeBadge type={d.type} />
-                <ConfBadge confidence={d.confidence} />
                 {abbrevPeople.length > 0 && (
                   <span className="text-xs text-gray-500">{abbrevPeople.join(', ')}</span>
                 )}
@@ -285,7 +258,6 @@ function DecisionRow({
                     Source: <Link to={src.url} className="text-indigo-500 hover:underline">{src.label}</Link>
                   </span>
                 )}
-                <ConfBadge confidence={d.confidence} />
                 {abbrevPeople.length > 0 && (
                   <span className="text-xs text-gray-500">{abbrevPeople.join(', ')}</span>
                 )}
@@ -575,7 +547,6 @@ export function ProjectDecisionsPage() {
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell whitespace-nowrap">
                     Source
                   </th>
-                  <ColHeader label="Confidence" col="confidence" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="hidden lg:table-cell whitespace-nowrap" />
                   <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell whitespace-nowrap">
                     People
                   </th>
