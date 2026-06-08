@@ -289,46 +289,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ deleted: count ?? 0 })
     }
 
-    // ── GET /api/decisions ──────────────────────────────────────────────────
-    if (req.method === 'GET' && rest.length === 0) {
-      const { project_id, status, limit = '50' } = req.query as Record<string, string>
-      if (!project_id) return res.status(400).json({ error: 'project_id required' })
-
-      let q = supabase
-        .from('decisions')
-        .select('*')
-        .eq('project_id', project_id)
-        .neq('source_type', 'journal_entry')
-        .order('date', { ascending: false })
-        .limit(parseInt(limit))
-
-      if (status) q = q.eq('status', status)
-      else        q = q.neq('status', 'dismissed')  // default: all non-dismissed
-
-      const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ decisions: data ?? [] })
-    }
-
-    // ── POST /api/decisions (manual create) ─────────────────────────────────
-    if (req.method === 'POST' && rest.length === 0) {
-      const { project_id, user_id, content, date, people, notes } = req.body ?? {}
-      if (!project_id || !user_id || !content || !date) {
-        return res.status(400).json({ error: 'project_id, user_id, content, date required' })
-      }
-      const { data, error } = await supabase.from('decisions').insert({
-        project_id, user_id, content, date,
-        people:      Array.isArray(people) ? people : (people ? [people] : []),
-        notes:       notes ?? null,
-        source_type: 'manual',
-        source_id:   null,
-        confidence:  null,
-        status:      'active',
-      }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(201).json({ decision: data })
-    }
-
     // ── PATCH /api/decisions/:id ─────────────────────────────────────────────
     if (req.method === 'PATCH' && rest[0] && rest[0] !== 'extract' && rest[0] !== 'backfill') {
       const decisionId = rest[0]
