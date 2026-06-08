@@ -101,7 +101,7 @@ export interface Decision {
 
 export interface SearchResult {
   id: string
-  type: 'journal' | 'task' | 'transcript'
+  type: 'journal' | 'task' | 'transcript' | 'decision'
   title: string
   date?: string
   body: string

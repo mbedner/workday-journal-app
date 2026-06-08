@@ -339,6 +339,9 @@ export function ProjectDecisionsPage() {
 
   const [menuDecision, setMenuDecision] = useState<Decision | null>(null)
   const [menuAnchor,   setMenuAnchor]   = useState<{ top: number; left: number } | null>(null)
+  const [editDecision, setEditDecision] = useState<Decision | null>(null)
+  const [editText,     setEditText]     = useState('')
+  const [editSaving,   setEditSaving]   = useState(false)
 
   const [addOpen,   setAddOpen]   = useState(false)
   const [content,   setContent]   = useState('')
@@ -401,11 +404,9 @@ export function ProjectDecisionsPage() {
     setMenuAnchor(null)
     try {
       if (action === 'edit') {
-        const text = window.prompt('Edit decision:', menuDecision.content)
-        if (text?.trim()) {
-          const updated = await updateDecision(menuDecision.id, { content: text.trim() })
-          setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
-        }
+        setEditDecision(menuDecision)
+        setEditText(menuDecision.content)
+        return
       } else if (action === 'activate') {
         await updateDecision(menuDecision.id, { status: 'active' })
         reload()
@@ -639,6 +640,39 @@ export function ProjectDecisionsPage() {
           ))}
         </div>
       )}
+
+      {/* Edit decision modal */}
+      <Modal open={!!editDecision} onClose={() => setEditDecision(null)} title="Edit decision">
+        <div className="space-y-4">
+          <Textarea
+            label="Decision"
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            rows={4}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
+            <Button
+              disabled={!editText.trim() || editText.trim() === editDecision?.content}
+              loading={editSaving}
+              onClick={async () => {
+                if (!editDecision || !editText.trim()) return
+                setEditSaving(true)
+                try {
+                  const updated = await updateDecision(editDecision.id, { content: editText.trim() })
+                  setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
+                  setEditDecision(null)
+                  addToast('Decision updated', 'success')
+                } catch { addToast('Failed to update', 'error') }
+                finally { setEditSaving(false) }
+              }}
+            >
+              Save changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add decision modal */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add decision">

@@ -379,6 +379,9 @@ export function ProjectDetailPage() {
   // Decision UI
   const [reviewOpen,    setReviewOpen]    = useState(false)
   const [addOpen,       setAddOpen]       = useState(false)
+  const [editDecision,  setEditDecision]  = useState<Decision | null>(null)
+  const [editText,      setEditText]      = useState('')
+  const [editSaving,    setEditSaving]    = useState(false)
   const [menuDecision,  setMenuDecision]  = useState<Decision | null>(null)
   const [menuAnchor,    setMenuAnchor]    = useState<{ top: number; left: number } | null>(null)
 
@@ -426,14 +429,14 @@ export function ProjectDetailPage() {
   // Load decisions separately (don't block main load)
   useEffect(() => {
     if (!id) return
-    fetchDecisions(id, undefined, 100)
+    fetchDecisions(id, undefined, 1000)
       .then(setDecisions)
       .catch(() => { /* silent */ })
   }, [id])
 
   const reloadDecisions = () => {
     if (!id) return
-    fetchDecisions(id, undefined, 100).then(setDecisions).catch(() => {})
+    fetchDecisions(id, undefined, 1000).then(setDecisions).catch(() => {})
   }
 
   const toggleDone = async (task: Task) => {
@@ -503,11 +506,9 @@ export function ProjectDetailPage() {
     setMenuAnchor(null)
     try {
       if (action === 'edit') {
-        const text = window.prompt('Edit decision:', menuDecision.content)
-        if (text && text.trim()) {
-          const updated = await updateDecision(menuDecision.id, { content: text.trim() })
-          setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
-        }
+        setEditDecision(menuDecision)
+        setEditText(menuDecision.content)
+        return
       } else if (action === 'supersede') {
         await updateDecision(menuDecision.id, { status: 'superseded' })
         reloadDecisions()
@@ -791,21 +792,16 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <>
-              {/* Compact table header */}
-              <div className="border-b border-gray-100 bg-gray-50 hidden sm:block">
-                <table className="w-full">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</th>
-                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell">Type</th>
-                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Date</th>
-                      <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell">Source</th>
-                      <th className="w-8" />
-                    </tr>
-                  </thead>
-                </table>
-              </div>
               <table className="w-full">
+                <thead className="border-b border-gray-100 bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell w-24">Type</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide w-16">Date</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell w-36">Source</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
                   {recentDecisions.map(d => (
                     <DecisionRow
@@ -886,6 +882,39 @@ export function ProjectDetailPage() {
           ))}
         </div>
       )}
+
+      {/* Edit decision modal */}
+      <Modal open={!!editDecision} onClose={() => setEditDecision(null)} title="Edit decision">
+        <div className="space-y-4">
+          <Textarea
+            label="Decision"
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            rows={4}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
+            <Button
+              disabled={!editText.trim() || editText.trim() === editDecision?.content}
+              loading={editSaving}
+              onClick={async () => {
+                if (!editDecision || !editText.trim()) return
+                setEditSaving(true)
+                try {
+                  const updated = await updateDecision(editDecision.id, { content: editText.trim() })
+                  setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
+                  setEditDecision(null)
+                  addToast('Decision updated', 'success')
+                } catch { addToast('Failed to update', 'error') }
+                finally { setEditSaving(false) }
+              }}
+            >
+              Save changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit project modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit project">

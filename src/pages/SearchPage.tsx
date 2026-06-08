@@ -12,8 +12,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 
-const typeVariants: Record<string, 'indigo' | 'green' | 'blue'> = {
-  journal: 'indigo', task: 'green', transcript: 'blue',
+const typeVariants: Record<string, 'indigo' | 'green' | 'blue' | 'yellow'> = {
+  journal: 'indigo', task: 'green', transcript: 'blue', decision: 'yellow',
 }
 
 export function SearchPage() {
@@ -33,7 +33,7 @@ export function SearchPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const [{ data: journals }, { data: tasks }, { data: transcripts }] = await Promise.all([
+      const [{ data: journals }, { data: tasks }, { data: transcripts }, { data: decisions }] = await Promise.all([
         supabase.from('journal_entries').select(`
           id, entry_date, focus, accomplished, needs_attention, reflection,
           journal_entry_projects(projects(name)),
@@ -49,6 +49,10 @@ export function SearchPage() {
           transcript_projects(projects(name)),
           transcript_tags(tags(name))
         `),
+        supabase.from('decisions').select(`
+          id, content, date, type, project_id, excerpt, people, status,
+          projects(name)
+        `).neq('source_type', 'journal_entry').neq('status', 'dismissed'),
       ])
 
       const items: SearchResult[] = [
@@ -82,6 +86,16 @@ export function SearchPage() {
           tags: (t.transcript_tags ?? []).map((r: any) => r.tags?.name).filter(Boolean),
           projects: (t.transcript_projects ?? []).map((r: any) => r.projects?.name).filter(Boolean),
           url: `/transcripts/${t.id}`,
+        })),
+        ...(decisions ?? []).map((d: any) => ({
+          id: d.id,
+          type: 'decision' as const,
+          title: d.content,
+          date: d.date,
+          body: [d.content, d.excerpt, d.type, ...(d.people ?? [])].filter(Boolean).join(' '),
+          tags: [],
+          projects: d.projects?.name ? [d.projects.name] : [],
+          url: `/projects/${d.project_id}/decisions`,
         })),
       ]
 
@@ -118,7 +132,7 @@ export function SearchPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Search</h1>
-        <p className="text-sm text-gray-500">Search across journals, tasks, and transcripts</p>
+        <p className="text-sm text-gray-500">Search across journals, tasks, transcripts, and decisions</p>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -134,6 +148,7 @@ export function SearchPage() {
           <option value="journal">Journals</option>
           <option value="task">Tasks</option>
           <option value="transcript">Meeting Notes</option>
+          <option value="decision">Decisions</option>
         </Select>
       </div>
 
