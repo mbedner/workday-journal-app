@@ -51,48 +51,56 @@ async function isDuplicate(projectId: string, content: string): Promise<boolean>
 // ── Gemini extraction ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(projectName: string): string {
-  return `You are analyzing a meeting note to extract high-quality, meaningful decisions about the "${projectName}" project.
+  return `You are a strict decision auditor extracting only the most significant decisions from a meeting note about "${projectName}".
+
+Your job is to be HIGHLY SELECTIVE. A typical meeting should yield 0–3 decisions. Extracting nothing is correct and expected for many meetings. Never pad the list.
 
 ── PROJECT FILTER ────────────────────────────────────────────────────────────
 This meeting may span multiple projects. Only extract decisions that directly concern "${projectName}". Ignore everything else.
 
-── SIGNIFICANCE TEST ─────────────────────────────────────────────────────────
-Before extracting anything, ask: "Would a new team member joining ${projectName} need to know this decision to understand the project's direction, constraints, or key choices?" If no, do not extract it.
+── THE BAR ───────────────────────────────────────────────────────────────────
+Before extracting anything, ask: "Would this decision be written down in a permanent architecture doc, a product spec, or a project retrospective — and would it still matter six months from now?"
 
-── DO NOT EXTRACT ────────────────────────────────────────────────────────────
-✗ Task assignments ("Alice will update the docs")
-✗ Scheduling ("stand-up moves to Thursday")
-✗ Follow-up commitments ("Bob will look into this")
-✗ Status updates, observations, or what was discussed
-✗ Decisions that are provisional, still under debate, or need more research
-✗ Trivial logistics that don't affect the project's direction or architecture
+If the answer is not a clear YES, do not extract it. When in doubt, leave it out.
 
-── DO EXTRACT ────────────────────────────────────────────────────────────────
-✓ Scope decisions: what's in/out of the product or release
-✓ Architecture and technical choices made (not just discussed)
-✓ Design or UX direction the team committed to
-✓ Explicit trade-offs accepted ("we're choosing X over Y because...")
-✓ Resource or timeline commitments made at a leadership level
-✓ Things explicitly ruled out with reasoning
+── DO NOT EXTRACT (these are the most common false positives) ────────────────
+✗ Any task, action item, or follow-up ("we'll look into X", "Alice will update the docs")
+✗ Scheduling or logistics ("stand-up moves to Thursday", "next review is Friday")
+✗ Things that are still under discussion, provisional, or need more research
+✗ Status updates or progress reports ("the feature is 80% done")
+✗ Restatements of existing policy or prior decisions
+✗ Minor implementation details that any developer would decide independently
+✗ UI/UX preferences without an explicit commitment and clear reasoning
+✗ Anything where the "decision" is just the obvious or only option
+✗ Process suggestions that haven't been formally adopted
+✗ Anything you are inferring rather than reading explicitly in the text
+
+── DO EXTRACT (only these, and only when explicitly stated) ──────────────────
+✓ A deliberate choice between two or more real alternatives, with explicit commitment
+✓ A confirmed scope boundary: something explicitly included in or excluded from the project
+✓ A technology, architecture, or integration choice that was finalised (not just discussed)
+✓ A formal policy or ownership rule adopted by the team (not just suggested)
+✓ Something the team has explicitly decided NOT to do, with reasoning
 
 ── DECISION TYPES ────────────────────────────────────────────────────────────
-Classify each decision as one of:
-- "strategic"  — Affects direction, goals, scope, or positioning. These shape what the project IS. (e.g., "The MVP targets SMB customers only", "We will not rebuild the legacy auth system")
-- "tactical"   — Specific implementation, technology, or design choices committed to. (e.g., "Navigation uses a tab bar not a sidebar", "Auth is OAuth2 not session-based")
-- "operational" — Team structure, process, or ownership decisions with lasting impact. (e.g., "Design owns all component specs", "Releases require two approvals")
+- "strategic"   — Shapes what the project IS or is NOT: goals, scope, positioning, explicit exclusions
+- "tactical"    — A finalised technical or implementation choice between real alternatives
+- "operational" — A formal team-wide process or ownership rule with lasting effect (not a one-off action)
 
 ── CONFIDENCE ────────────────────────────────────────────────────────────────
-- "high"   — Explicitly stated commitment, clear language of decision
-- "medium" — Strong implication of decision, clear direction but not explicit
-- "low"    — Inferred; mark low only if you are uncertain
+- "high"   — Explicit commitment in the text; no ambiguity
+- "medium" — Clear strong direction but not 100% explicit; use sparingly
 
-Return a JSON array. If no qualifying decisions exist for "${projectName}", return [].
-Each item must include all five fields:
+Do NOT return "low" confidence items. If you're uncertain, do not extract.
+
+── OUTPUT ────────────────────────────────────────────────────────────────────
+Return a JSON array of at most 5 items. If no decisions meet the bar, return [].
+Each item must have all five fields:
 {
-  "content":    "concise present-tense statement, 10–25 words",
+  "content":    "concise present-tense statement of the decision, 10–25 words",
   "type":       "strategic" | "tactical" | "operational",
-  "confidence": "high" | "medium" | "low",
-  "people":     ["Full Name of anyone specifically mentioned in context of this decision"],
+  "confidence": "high" | "medium",
+  "people":     ["Full Name of anyone specifically named in the context of this decision"],
   "excerpt":    "the exact sentence or phrase from the source that supports this extraction"
 }`
 }
@@ -188,12 +196,17 @@ async function runExtraction(opts: {
     const { data: proj } = await supabase.from('projects').select('name').eq('id', projectId).single()
     if (!proj) continue
 
-    const candidates = await extractDecisionsFromContent({
+    const raw = await extractDecisionsFromContent({
       content,
       date,
       projectName: proj.name,
       attendees,
     })
+
+    // Hard guardrails: drop low-confidence noise, cap at 5 per source
+    const candidates = raw
+      .filter(c => c.confidence === 'high' || c.confidence === 'medium')
+      .slice(0, 5)
 
     for (const c of candidates) {
       const dup = await isDuplicate(projectId, c.content)
