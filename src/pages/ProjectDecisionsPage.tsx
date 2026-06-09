@@ -4,7 +4,6 @@ import {
   RiArrowLeftLine,
   RiAddLine,
   RiMoreLine,
-  RiScalesLine,
   RiCheckLine,
   RiCloseLine,
   RiArrowDownSLine,
@@ -17,6 +16,7 @@ import { Decision, Project, Transcript } from '../types'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
@@ -462,16 +462,22 @@ export function ProjectDecisionsPage() {
 
   const [menuDecision, setMenuDecision] = useState<Decision | null>(null)
   const [menuAnchor,   setMenuAnchor]   = useState<{ top: number; left: number } | null>(null)
-  const [editDecision, setEditDecision] = useState<Decision | null>(null)
-  const [editText,     setEditText]     = useState('')
+  const [editDecision,  setEditDecision]  = useState<Decision | null>(null)
+  const [editText,      setEditText]      = useState('')
+  const [editType,      setEditType]      = useState<Decision['type']>(null)
+  const [editSourceId,  setEditSourceId]  = useState('')
+  const [editPeople,    setEditPeople]    = useState('')
+  const [editNotes,     setEditNotes]     = useState('')
 
   const [purging,   setPurging]   = useState(false)
-  const [addOpen,   setAddOpen]   = useState(false)
-  const [content,   setContent]   = useState('')
-  const [date,      setDate]      = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [people,    setPeople]    = useState('')
-  const [notes,     setNotes]     = useState('')
-  const [addSaving, setAddSaving] = useState(false)
+  const [addOpen,        setAddOpen]        = useState(false)
+  const [content,        setContent]        = useState('')
+  const [date,           setDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [decisionType,   setDecisionType]   = useState<Decision['type']>(null)
+  const [addSourceId,    setAddSourceId]    = useState('')
+  const [people,         setPeople]         = useState('')
+  const [notes,          setNotes]          = useState('')
+  const [addSaving,      setAddSaving]      = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -551,6 +557,10 @@ export function ProjectDecisionsPage() {
     if (action === 'edit') {
       setEditDecision(d)
       setEditText(d.content)
+      setEditType(d.type)
+      setEditSourceId(d.source_type === 'meeting_note' ? (d.source_id ?? '') : '')
+      setEditPeople((d.people ?? []).join(', '))
+      setEditNotes(d.notes ?? '')
       return
     }
     if (action === 'activate')  { applyStatus(d.id, 'active');     return }
@@ -568,21 +578,31 @@ export function ProjectDecisionsPage() {
     }
   }
 
+  const resetAddForm = () => {
+    setContent(''); setDate(format(new Date(), 'yyyy-MM-dd'))
+    setDecisionType(null); setAddSourceId(''); setPeople(''); setNotes('')
+  }
+
   const saveDecision = async () => {
     if (!content.trim() || !userId || !id) return
     setAddSaving(true)
     try {
+      const src = addSourceId
+        ? { source_type: 'meeting_note' as const, source_id: addSourceId }
+        : { source_type: 'manual'       as const, source_id: null }
       const d = await createDecision({
         project_id: id,
         user_id:    userId,
         content:    content.trim(),
         date,
+        type:       decisionType ?? undefined,
         people:     people.split(',').map(s => s.trim()).filter(Boolean),
         notes:      notes || undefined,
+        ...src,
       })
       setDecisions(prev => [d, ...prev])
       setAddOpen(false)
-      setContent(''); setDate(format(new Date(), 'yyyy-MM-dd')); setPeople(''); setNotes('')
+      resetAddForm()
       addToast('Decision added', 'success')
     } catch (e: any) {
       addToast(e.message ?? 'Failed to add decision', 'error')
@@ -633,13 +653,9 @@ export function ProjectDecisionsPage() {
           <RiArrowLeftLine size={13} /> {project?.name}
         </Link>
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500">
-              <RiScalesLine size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{project?.name} — Decisions</h1>
-              <p className="text-sm text-gray-500">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{project?.name} — Decisions</h1>
+            <p className="text-sm text-gray-500">
                 {decisions.filter(d => d.status === 'active').length} active
                 {decisions.filter(d => d.status === 'pending_review').length > 0 && (
                   <span className="text-amber-600 font-medium">
@@ -647,7 +663,6 @@ export function ProjectDecisionsPage() {
                   </span>
                 )}
               </p>
-            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -825,23 +840,66 @@ export function ProjectDecisionsPage() {
             rows={4}
             autoFocus
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
+              <Select value={editType ?? ''} onChange={e => setEditType((e.target.value || null) as Decision['type'])}>
+                <option value="">— None —</option>
+                <option value="strategic">Strategic</option>
+                <option value="tactical">Tactical</option>
+                <option value="operational">Operational</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
+              <Select value={editSourceId} onChange={e => setEditSourceId(e.target.value)}>
+                <option value="">Manual</option>
+                {transcripts.map(t => (
+                  <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <Input
+            label="People (optional)"
+            value={editPeople}
+            onChange={e => setEditPeople(e.target.value)}
+            placeholder="Alice Smith, Bob Jones"
+          />
+          <Textarea
+            label="Notes (optional)"
+            value={editNotes}
+            onChange={e => setEditNotes(e.target.value)}
+            placeholder="Context about why this was decided"
+            rows={2}
+          />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
             <Button
-              disabled={!editText.trim() || editText.trim() === editDecision?.content}
+              disabled={!editText.trim()}
               onClick={async () => {
                 if (!editDecision || !editText.trim()) return
                 const trimmed = editText.trim()
                 const prev    = editDecision
-                // Optimistic
-                setDecisions(ds => ds.map(d => d.id === prev.id ? { ...d, content: trimmed } : d))
+                const newType   = editType
+                const newPeople = editPeople.split(',').map(s => s.trim()).filter(Boolean)
+                const newNotes  = editNotes || undefined
+                // Optimistic update
+                setDecisions(ds => ds.map(d => d.id === prev.id
+                  ? { ...d, content: trimmed, type: newType, people: newPeople, notes: newNotes ?? null }
+                  : d
+                ))
                 setEditDecision(null)
                 addToast('Decision updated', 'success')
                 try {
-                  await updateDecision(prev.id, { content: trimmed })
+                  await updateDecision(prev.id, {
+                    content: trimmed,
+                    type:    newType,
+                    people:  newPeople,
+                    notes:   newNotes,
+                  })
                 } catch {
-                  // Revert on failure
-                  setDecisions(ds => ds.map(d => d.id === prev.id ? { ...d, content: prev.content } : d))
+                  setDecisions(ds => ds.map(d => d.id === prev.id ? prev : d))
                   addToast('Failed to save — changes reverted', 'error')
                 }
               }}
@@ -853,7 +911,7 @@ export function ProjectDecisionsPage() {
       </Modal>
 
       {/* Add decision modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add decision">
+      <Modal open={addOpen} onClose={() => { setAddOpen(false); resetAddForm() }} title="Add decision">
         <div className="space-y-4">
           <Textarea
             label="Decision"
@@ -863,6 +921,26 @@ export function ProjectDecisionsPage() {
             rows={3}
             autoFocus
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
+              <Select value={decisionType ?? ''} onChange={e => setDecisionType((e.target.value || null) as Decision['type'])}>
+                <option value="">— None —</option>
+                <option value="strategic">Strategic</option>
+                <option value="tactical">Tactical</option>
+                <option value="operational">Operational</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
+              <Select value={addSourceId} onChange={e => setAddSourceId(e.target.value)}>
+                <option value="">Manual</option>
+                {transcripts.map(t => (
+                  <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
           <Input
             label="Date"
             type="date"
@@ -884,7 +962,7 @@ export function ProjectDecisionsPage() {
             rows={2}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { setAddOpen(false); resetAddForm() }}>Cancel</Button>
             <Button onClick={saveDecision} loading={addSaving} disabled={!content.trim()}>
               Add decision
             </Button>

@@ -35,16 +35,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── POST /api/decisions (manual create) ─────────────────────────────────
     if (req.method === 'POST') {
-      const { project_id, user_id, content, date, people, notes } = req.body ?? {}
+      const { project_id, user_id, content, date, type, source_type, source_id, people, notes } = req.body ?? {}
       if (!project_id || !user_id || !content || !date) {
         return res.status(400).json({ error: 'project_id, user_id, content, date required' })
       }
       const { data, error } = await supabase.from('decisions').insert({
         project_id, user_id, content, date,
+        type:        type ?? null,
         people:      Array.isArray(people) ? people : (people ? [people] : []),
         notes:       notes ?? null,
-        source_type: 'manual',
-        source_id:   null,
+        source_type: source_type ?? 'manual',
+        source_id:   source_id   ?? null,
         confidence:  null,
         status:      'active',
       }).select().single()

@@ -20,12 +20,15 @@ export async function fetchDecisions(
 // ── Create (manual) ───────────────────────────────────────────────────────────
 
 export async function createDecision(payload: {
-  project_id: string
-  user_id: string
-  content: string
-  date: string
-  people?: string[]
-  notes?: string
+  project_id:  string
+  user_id:     string
+  content:     string
+  date:        string
+  type?:       string
+  source_type?: 'manual' | 'meeting_note'
+  source_id?:  string | null
+  people?:     string[]
+  notes?:      string
 }): Promise<Decision> {
   const res  = await fetch(BASE, {
     method:  'POST',
@@ -41,7 +44,7 @@ export async function createDecision(payload: {
 
 export async function updateDecision(
   id: string,
-  patch: Partial<Pick<Decision, 'content' | 'status' | 'superseded_by' | 'people' | 'notes'>>
+  patch: Partial<Pick<Decision, 'content' | 'type' | 'status' | 'superseded_by' | 'people' | 'notes'>>
 ): Promise<Decision> {
   const res  = await fetch(`${BASE}/${id}`, {
     method:  'PATCH',
