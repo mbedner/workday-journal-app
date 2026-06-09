@@ -22,6 +22,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { useToast } from '../contexts/ToastContext'
@@ -274,30 +275,36 @@ function ReviewModal({ decisions, journals, transcripts, onClose, onRefresh }: {
 
 // ── Add decision modal ────────────────────────────────────────────────────────
 
-function AddDecisionModal({ projectId, userId, onClose, onSaved }: {
-  projectId: string
-  userId:    string
-  onClose:   () => void
-  onSaved:   (d: Decision) => void
+function AddDecisionModal({ projectId, userId, transcripts, onClose, onSaved }: {
+  projectId:   string
+  userId:      string
+  transcripts: Transcript[]
+  onClose:     () => void
+  onSaved:     (d: Decision) => void
 }) {
   const { addToast } = useToast()
-  const [content, setContent] = useState('')
-  const [date,    setDate]    = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [people,  setPeople]  = useState('')
-  const [notes,   setNotes]   = useState('')
-  const [saving,  setSaving]  = useState(false)
+  const [content,      setContent]      = useState('')
+  const [date,         setDate]         = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [decisionType, setDecisionType] = useState<Decision['type']>(null)
+  const [sourceId,     setSourceId]     = useState('')
+  const [people,       setPeople]       = useState('')
+  const [notes,        setNotes]        = useState('')
+  const [saving,       setSaving]       = useState(false)
 
   const save = async () => {
     if (!content.trim()) return
     setSaving(true)
     try {
       const d = await createDecision({
-        project_id: projectId,
-        user_id:    userId,
-        content:    content.trim(),
+        project_id:  projectId,
+        user_id:     userId,
+        content:     content.trim(),
         date,
-        people:     people.split(',').map(s => s.trim()).filter(Boolean),
-        notes:      notes || undefined,
+        type:        decisionType ?? undefined,
+        source_type: sourceId ? 'meeting_note' : 'manual',
+        source_id:   sourceId || null,
+        people:      people.split(',').map(s => s.trim()).filter(Boolean),
+        notes:       notes || undefined,
       })
       onSaved(d)
       onClose()
@@ -320,6 +327,26 @@ function AddDecisionModal({ projectId, userId, onClose, onSaved }: {
           rows={3}
           autoFocus
         />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
+            <Select value={decisionType ?? ''} onChange={e => setDecisionType((e.target.value || null) as Decision['type'])}>
+              <option value="">— None —</option>
+              <option value="strategic">Strategic</option>
+              <option value="tactical">Tactical</option>
+              <option value="operational">Operational</option>
+            </Select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
+            <Select value={sourceId} onChange={e => setSourceId(e.target.value)}>
+              <option value="">Manual</option>
+              {transcripts.map(t => (
+                <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
         <Input
           label="Date"
           type="date"
@@ -955,6 +982,7 @@ export function ProjectDetailPage() {
         <AddDecisionModal
           projectId={id!}
           userId={userId}
+          transcripts={transcripts}
           onClose={() => setAddOpen(false)}
           onSaved={d => setDecisions(prev => [d, ...prev])}
         />
