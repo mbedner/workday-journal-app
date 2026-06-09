@@ -409,6 +409,10 @@ export function ProjectDetailPage() {
   const [addOpen,       setAddOpen]       = useState(false)
   const [editDecision,  setEditDecision]  = useState<Decision | null>(null)
   const [editText,      setEditText]      = useState('')
+  const [editType,      setEditType]      = useState<Decision['type']>(null)
+  const [editSourceId,  setEditSourceId]  = useState('')
+  const [editPeople,    setEditPeople]    = useState('')
+  const [editNotes,     setEditNotes]     = useState('')
   const [editSaving,    setEditSaving]    = useState(false)
   const [menuDecision,  setMenuDecision]  = useState<Decision | null>(null)
   const [menuAnchor,    setMenuAnchor]    = useState<{ top: number; left: number } | null>(null)
@@ -546,6 +550,10 @@ export function ProjectDetailPage() {
       if (action === 'edit') {
         setEditDecision(menuDecision)
         setEditText(menuDecision.content)
+        setEditType(menuDecision.type)
+        setEditSourceId(menuDecision.source_type === 'meeting_note' ? (menuDecision.source_id ?? '') : '')
+        setEditPeople((menuDecision.people ?? []).join(', '))
+        setEditNotes(menuDecision.notes ?? '')
         return
       } else if (action === 'supersede') {
         await updateDecision(menuDecision.id, { status: 'superseded' })
@@ -931,16 +939,54 @@ export function ProjectDetailPage() {
             rows={4}
             autoFocus
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
+              <Select value={editType ?? ''} onChange={e => setEditType((e.target.value || null) as Decision['type'])}>
+                <option value="">— None —</option>
+                <option value="strategic">Strategic</option>
+                <option value="tactical">Tactical</option>
+                <option value="operational">Operational</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
+              <Select value={editSourceId} onChange={e => setEditSourceId(e.target.value)}>
+                <option value="">Manual</option>
+                {transcripts.map(t => (
+                  <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <Input
+            label="People (optional)"
+            value={editPeople}
+            onChange={e => setEditPeople(e.target.value)}
+            placeholder="Alice Smith, Bob Jones"
+          />
+          <Textarea
+            label="Notes (optional)"
+            value={editNotes}
+            onChange={e => setEditNotes(e.target.value)}
+            placeholder="Context about why this was decided"
+            rows={2}
+          />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
             <Button
-              disabled={!editText.trim() || editText.trim() === editDecision?.content}
+              disabled={!editText.trim()}
               loading={editSaving}
               onClick={async () => {
                 if (!editDecision || !editText.trim()) return
                 setEditSaving(true)
                 try {
-                  const updated = await updateDecision(editDecision.id, { content: editText.trim() })
+                  const updated = await updateDecision(editDecision.id, {
+                    content: editText.trim(),
+                    type:    editType,
+                    people:  editPeople.split(',').map(s => s.trim()).filter(Boolean),
+                    notes:   editNotes || undefined,
+                  })
                   setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
                   setEditDecision(null)
                   addToast('Decision updated', 'success')
