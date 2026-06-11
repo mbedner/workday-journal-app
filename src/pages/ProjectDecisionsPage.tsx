@@ -19,6 +19,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Tooltip } from '../components/ui/Tooltip'
 import { useToast } from '../contexts/ToastContext'
 import { fetchDecisions, createDecision, updateDecision, deleteDecision, purgeDecisionsBySource } from '../lib/decisions'
 
@@ -311,14 +312,15 @@ function DecisionRow({
         {/* Source */}
         <td className="px-3 py-3 whitespace-nowrap hidden md:table-cell max-w-[160px]">
           {src ? (
-            <Link
-              to={src.url}
-              onClick={e => e.stopPropagation()}
-              className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline font-medium block truncate"
-              title={src.label}
-            >
-              {src.label}
-            </Link>
+            <Tooltip content={src.label}>
+              <Link
+                to={src.url}
+                onClick={e => e.stopPropagation()}
+                className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline font-medium block truncate"
+              >
+                {src.label}
+              </Link>
+            </Tooltip>
           ) : (
             <span className="text-xs text-gray-300">Manual</span>
           )}
@@ -327,12 +329,14 @@ function DecisionRow({
         {/* People */}
         <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
           {abbrevPeople.length > 0 ? (
-            <span className="text-xs text-gray-500" title={d.people.join(', ')}>
-              {abbrevPeople.slice(0, 2).join(', ')}
-              {abbrevPeople.length > 2 && (
-                <span className="text-gray-400"> +{abbrevPeople.length - 2}</span>
-              )}
-            </span>
+            <Tooltip content={d.people.join(', ')}>
+              <span className="text-xs text-gray-500">
+                {abbrevPeople.slice(0, 2).join(', ')}
+                {abbrevPeople.length > 2 && (
+                  <span className="text-gray-400"> +{abbrevPeople.length - 2}</span>
+                )}
+              </span>
+            </Tooltip>
           ) : (
             <span className="text-gray-300 text-xs">—</span>
           )}
@@ -342,20 +346,22 @@ function DecisionRow({
         <td className="px-3 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
           {isPending ? (
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => onInlineAction('activate', d)}
-                title="Confirm decision"
-                className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors"
-              >
-                <RiCheckLine size={14} />
-              </button>
-              <button
-                onClick={() => onInlineAction('dismiss', d)}
-                title="Dismiss"
-                className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 transition-colors"
-              >
-                <RiCloseLine size={14} />
-              </button>
+              <Tooltip content="Confirm">
+                <button
+                  onClick={() => onInlineAction('activate', d)}
+                  className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 transition-colors"
+                >
+                  <RiCheckLine size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Dismiss">
+                <button
+                  onClick={() => onInlineAction('dismiss', d)}
+                  className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <RiCloseLine size={14} />
+                </button>
+              </Tooltip>
             </div>
           ) : (
             <button
