@@ -469,7 +469,8 @@ export function ProjectDecisionsPage() {
   const [editPeople,    setEditPeople]    = useState('')
   const [editNotes,     setEditNotes]     = useState('')
 
-  const [purging,   setPurging]   = useState(false)
+  const [purging,         setPurging]         = useState(false)
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false)
   const [addOpen,        setAddOpen]        = useState(false)
   const [content,        setContent]        = useState('')
   const [date,           setDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
@@ -514,9 +515,8 @@ export function ProjectDecisionsPage() {
 
   const handlePurge = async () => {
     if (!id) return
-    const aiCount = decisions.filter(d => d.source_type === 'meeting_note').length
-    if (!window.confirm(`Delete all ${aiCount} AI-extracted decisions from meeting notes? Manual decisions will be kept. This can't be undone.`)) return
     setPurging(true)
+    setPurgeConfirmOpen(false)
     try {
       const { deleted } = await purgeDecisionsBySource(id, 'meeting_note')
       setDecisions(prev => prev.filter(d => d.source_type !== 'meeting_note'))
@@ -667,7 +667,7 @@ export function ProjectDecisionsPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
-              onClick={handlePurge}
+              onClick={() => setPurgeConfirmOpen(true)}
               loading={purging}
               disabled={purging || decisions.filter(d => d.source_type === 'meeting_note').length === 0}
             >
@@ -905,6 +905,29 @@ export function ProjectDecisionsPage() {
               }}
             >
               Save changes
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Purge confirmation modal */}
+      <Modal open={purgeConfirmOpen} onClose={() => setPurgeConfirmOpen(false)} title="Clear AI decisions" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            This will permanently delete all{' '}
+            <span className="font-semibold text-gray-900">
+              {decisions.filter(d => d.source_type === 'meeting_note').length}
+            </span>{' '}
+            AI-extracted decisions for this project. Manually added decisions will be kept.
+          </p>
+          <p className="text-sm text-gray-500">Scan history will also be reset, so all meeting notes will be re-scanned on the next scan.</p>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setPurgeConfirmOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handlePurge}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+            >
+              Clear AI decisions
             </Button>
           </div>
         </div>
