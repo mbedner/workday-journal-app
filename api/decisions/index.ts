@@ -22,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .select('*')
         .eq('project_id', project_id)
         .neq('source_type', 'journal_entry')
+        .neq('content', '__scanned__')
         .order('date', { ascending: false })
         .limit(parseInt(limit))
 

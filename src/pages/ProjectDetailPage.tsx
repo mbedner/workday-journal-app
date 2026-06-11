@@ -394,8 +394,7 @@ export function ProjectDetailPage() {
   const [userId,      setUserId]      = useState<string>('')
 
   // Backfill / cleanup
-  const [backfilling,    setBackfilling]    = useState(false)
-  const [backfillOffset, setBackfillOffset] = useState(0)
+  const [backfilling, setBackfilling] = useState(false)
   const [cleaning,    setCleaning]    = useState(false)
 
   // Edit project modal
@@ -506,12 +505,7 @@ export function ProjectDetailPage() {
     if (!id || !userId) return
     setBackfilling(true)
     try {
-      const { extracted, remaining, nextOffset } = await backfillDecisions(id, userId, backfillOffset)
-      if (remaining > 0) {
-        setBackfillOffset(nextOffset)
-      } else {
-        setBackfillOffset(0)
-      }
+      const { extracted, remaining } = await backfillDecisions(id, userId)
       const msg = remaining > 0
         ? `${extracted} decision${extracted !== 1 ? 's' : ''} found · ${remaining} note${remaining !== 1 ? 's' : ''} left — scan again`
         : extracted > 0

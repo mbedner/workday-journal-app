@@ -204,6 +204,7 @@ async function runExtraction(opts: {
       console.error(`runExtraction: Gemini failed for ${opts.sourceId}:`, geminiError)
     }
 
+    // If Gemini errored, don't mark as scanned — allow retry next run
     if (geminiError) return { extracted: 0, skipped: 0, debug: `gemini error: ${geminiError}` }
 
     // Hard guardrails: drop low-confidence noise, cap at 5 per source
@@ -212,6 +213,24 @@ async function runExtraction(opts: {
       .slice(0, 5)
 
     console.log(`runExtraction ${opts.sourceId}: content=${content.length}chars, raw=${raw.length}, candidates=${candidates.length}`)
+
+    if (candidates.length === 0) {
+      // Insert a dismissed placeholder so this transcript is skipped on future scans.
+      // Purging AI decisions removes these too, enabling a clean rescan.
+      await supabase.from('decisions').insert({
+        project_id:  projectId,
+        user_id:     opts.userId,
+        content:     '__scanned__',
+        source_type: opts.sourceType,
+        source_id:   opts.sourceId,
+        date,
+        people:      [],
+        confidence:  null,
+        excerpt:     null,
+        type:        null,
+        status:      'dismissed',
+      })
+    }
 
     for (const c of candidates) {
       const dup = await isDuplicate(projectId, c.content)
@@ -263,20 +282,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ── POST /api/decisions/backfill ────────────────────────────────────────
     if (req.method === 'POST' && rest[0] === 'backfill') {
-      const { project_id, user_id, offset = 0 } = req.body ?? {}
+      const { project_id, user_id } = req.body ?? {}
       if (!project_id || !user_id) return res.status(400).json({ error: 'project_id and user_id required' })
 
-      // Fetch all transcripts for this project in a stable order
+      // All transcripts linked to this project
       const { data: tp } = await supabase
         .from('transcript_projects')
         .select('transcript_id')
         .eq('project_id', project_id)
-        .order('transcript_id')
 
-      const all  = tp ?? []
-      const rows = all.slice(offset, offset + 5)
-      const remaining = Math.max(0, all.length - offset - rows.length)
-      console.log(`backfill: ${all.length} total, offset=${offset}, running ${rows.length}, remaining after=${remaining}`)
+      // Any transcript that already has a row in decisions (real or __scanned__ placeholder)
+      // is considered done and will be skipped — including dismissed placeholder rows.
+      const { data: existing } = await supabase
+        .from('decisions')
+        .select('source_id')
+        .eq('project_id', project_id)
+        .eq('source_type', 'meeting_note')
+      const scannedIds = new Set((existing ?? []).map((r: any) => r.source_id))
+
+      const unscanned = (tp ?? []).filter(r => !scannedIds.has(r.transcript_id))
+      const rows      = unscanned.slice(0, 5)
+      const remaining = Math.max(0, unscanned.length - rows.length)
+      console.log(`backfill: ${(tp ?? []).length} total, ${unscanned.length} unscanned, running ${rows.length}, remaining=${remaining}`)
 
       // Run all extractions in parallel — faster and avoids sequential timeouts
       const results = await Promise.allSettled(
@@ -307,7 +334,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         extracted: totalExtracted,
         skipped:   totalSkipped,
         remaining,
-        nextOffset: offset + rows.length,
         status: remaining > 0 ? 'partial' : 'done',
         debug: debugLog,
       })
