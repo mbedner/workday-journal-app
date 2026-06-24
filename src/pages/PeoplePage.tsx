@@ -17,7 +17,16 @@ import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSh
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 
 type SortKey = 'recently_viewed' | 'recently_updated' | 'alphabetical' | 'most_mentioned'
-type GroupBy = 'none' | 'organization' | 'tag'
+type GroupBy = 'none' | 'tag' | 'recency' | 'alphabet'
+
+const RECENCY_ORDER = ['Updated this week', 'Updated this month', 'Older']
+
+function recencyBucket(updatedAt: string): string {
+  const days = (Date.now() - new Date(updatedAt).getTime()) / 86_400_000
+  if (days <= 7) return 'Updated this week'
+  if (days <= 30) return 'Updated this month'
+  return 'Older'
+}
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'recently_viewed',  label: 'Recently viewed' },
@@ -51,7 +60,7 @@ export function PeoplePage() {
   const { names: knownAttendees, loading: attendeesLoading } = useAttendees()
 
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortKey>('recently_updated')
+  const [sort, setSort] = useState<SortKey>('alphabetical')
   const [tagFilter, setTagFilter] = useState('')
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
 
@@ -126,10 +135,11 @@ export function PeoplePage() {
     return sorted
   }, [people, search, tagFilter, sort, mentionCounts, noteText, personTags])
 
-  // Unified groupedItems — groups by organization or tag; a person can appear in multiple tag groups
+  // Unified groupedItems — tag (a person can appear in multiple groups), recency, or alphabet
   const groupedItems = useMemo((): [string, Person[]][] | null => {
     if (groupBy === 'none') return null
     const groups = new Map<string, Person[]>()
+
     if (groupBy === 'tag') {
       for (const p of filtered) {
         const tags = personTags[p.id] ?? []
@@ -143,21 +153,37 @@ export function PeoplePage() {
           }
         }
       }
-    } else {
+      return Array.from(groups.entries()).sort(([a], [b]) => {
+        if (a === '__none__') return 1
+        if (b === '__none__') return -1
+        return a.localeCompare(b)
+      })
+    }
+
+    if (groupBy === 'recency') {
       for (const p of filtered) {
-        const key = p.organization?.trim() || '__none__'
+        const key = recencyBucket(p.updated_at)
         if (!groups.has(key)) groups.set(key, [])
         groups.get(key)!.push(p)
       }
+      return Array.from(groups.entries()).sort(([a], [b]) => RECENCY_ORDER.indexOf(a) - RECENCY_ORDER.indexOf(b))
+    }
+
+    // alphabet
+    for (const p of filtered) {
+      const first = p.name.trim()[0]?.toUpperCase() ?? '#'
+      const key = /[A-Z]/.test(first) ? first : '#'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(p)
     }
     return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === '__none__') return 1
-      if (b === '__none__') return -1
+      if (a === '#') return 1
+      if (b === '#') return -1
       return a.localeCompare(b)
     })
   }, [filtered, personTags, groupBy])
 
-  const displayLabel = (label: string) => label === '__none__' ? (groupBy === 'tag' ? 'No tags' : 'No organization') : label
+  const displayLabel = (label: string) => label === '__none__' ? 'No tags' : label
 
   // Every known attendee gets a Person automatically — keeps People and attendees in sync.
   // Runs once per mount only — the ref guard prevents re-firing/overlapping runs that
@@ -190,7 +216,7 @@ export function PeoplePage() {
       ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}`
       : `${people.length} ${people.length !== 1 ? 'people' : 'person'}`
 
-  const activeFilterCount = [tagFilter, groupBy !== 'none' ? groupBy : '', sort !== 'recently_updated' ? sort : ''].filter(Boolean).length
+  const activeFilterCount = [tagFilter, groupBy !== 'none' ? groupBy : '', sort !== 'alphabetical' ? sort : ''].filter(Boolean).length
 
   const GridCard = ({ p }: { p: Person }) => (
     <div
@@ -272,8 +298,9 @@ export function PeoplePage() {
         )}
         <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-44">
           <option value="none">No grouping</option>
-          <option value="organization">Group by organization</option>
           <option value="tag">Group by tag</option>
+          <option value="recency">Group by recency</option>
+          <option value="alphabet">Group by letter</option>
         </Select>
         <Select value={sort} onChange={e => setSort(e.target.value as SortKey)} className="w-44">
           {SORTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -293,8 +320,9 @@ export function PeoplePage() {
         <FilterRow label="Group by">
           <Select value={groupBy} onChange={e => handleGroupByChange(e.target.value as GroupBy)} className="w-full">
             <option value="none">No grouping</option>
-            <option value="organization">Group by organization</option>
             <option value="tag">Group by tag</option>
+            <option value="recency">Group by recency</option>
+            <option value="alphabet">Group by letter</option>
           </Select>
         </FilterRow>
         <FilterRow label="Sort">
