@@ -5,6 +5,7 @@ import {
   RiCheckboxLine,
   RiFileList3Line,
   RiFolderLine,
+  RiContactsLine,
   RiSettings3Line,
   RiSearchLine,
   RiArchiveLine,
@@ -17,6 +18,7 @@ const nav = [
   { to: '/tasks', label: 'Tasks', Icon: RiCheckboxLine },
   { to: '/transcripts', label: 'Meeting Notes', Icon: RiFileList3Line },
   { to: '/projects', label: 'Projects', Icon: RiFolderLine },
+  { to: '/people', label: 'People', Icon: RiContactsLine },
 ]
 
 const bottomNav = [

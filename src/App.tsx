@@ -13,6 +13,8 @@ import { TranscriptDetailPage } from './pages/TranscriptDetailPage'
 import { SearchPage } from './pages/SearchPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { PeoplePage } from './pages/PeoplePage'
+import { PersonDetailPage } from './pages/PersonDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ArchivePage } from './pages/ArchivePage'
 import { PrivacyPage } from './pages/PrivacyPage'
@@ -36,6 +38,8 @@ export default function App() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id" element={<ProjectDetailPage />} />
+            <Route path="/people" element={<PeoplePage />} />
+            <Route path="/people/:id" element={<PersonDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/archive" element={<ArchivePage />} />
           </Route>

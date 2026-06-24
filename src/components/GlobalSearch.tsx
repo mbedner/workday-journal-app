@@ -11,12 +11,12 @@ import { supabase } from '../lib/supabase'
 import { SearchResult } from '../types'
 import { Badge } from './ui/Badge'
 
-const typeVariants: Record<string, 'indigo' | 'green' | 'blue'> = {
-  journal: 'indigo', task: 'green', transcript: 'blue',
+const typeVariants: Record<string, 'indigo' | 'green' | 'blue' | 'yellow'> = {
+  journal: 'indigo', task: 'green', transcript: 'blue', person: 'yellow',
 }
 
 const typeLabels: Record<string, string> = {
-  journal: 'Journal', task: 'Task', transcript: 'Meeting',
+  journal: 'Journal', task: 'Task', transcript: 'Meeting', person: 'Person',
 }
 
 interface Props {
@@ -69,13 +69,16 @@ export function GlobalSearch({ open, onClose }: Props) {
     if (loaded) return
     setLoading(true)
 
-    const [{ data: journals }, { data: tasks }, { data: transcripts }] = await Promise.all([
+    const [{ data: journals }, { data: tasks }, { data: transcripts }, { data: people }] = await Promise.all([
       supabase.from('journal_entries').select(
         'id, entry_date, focus, accomplished, needs_attention, reflection'
       ).is('archived_at', null),
       supabase.from('tasks').select('id, title, notes, status, priority').is('archived_at', null),
       supabase.from('transcripts').select(
         'id, meeting_title, meeting_date, attendees, raw_transcript, summary, decisions, action_items'
+      ).is('archived_at', null),
+      supabase.from('people').select(
+        'id, name, role, organization, where_met, person_notes(content, tags)'
       ).is('archived_at', null),
     ])
 
@@ -117,6 +120,18 @@ export function GlobalSearch({ open, onClose }: Props) {
           body: plain,
           tags: [], projects: [],
           url: `/transcripts/${t.id}`,
+        }
+      }),
+      ...(people ?? []).map((p: any) => {
+        const noteBody = (p.person_notes ?? []).map((n: any) => n.content).join(' ')
+        const noteTags = (p.person_notes ?? []).flatMap((n: any) => n.tags ?? [])
+        return {
+          id: p.id,
+          type: 'person' as const,
+          title: p.name,
+          body: [p.role, p.organization, p.where_met, noteBody].filter(Boolean).join(' '),
+          tags: [...new Set(noteTags)] as string[], projects: [],
+          url: `/people/${p.id}`,
         }
       }),
     ]
@@ -214,7 +229,7 @@ export function GlobalSearch({ open, onClose }: Props) {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Search across journals, tasks, and meeting notes…"
+                placeholder="Search across journals, tasks, meeting notes, and people…"
                 className="flex-1 text-sm outline-none placeholder-gray-400 text-gray-900"
               />
               {query && (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { RiArrowLeftLine, RiPencilLine, RiSparklingLine, RiUserAddLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
@@ -18,7 +18,47 @@ import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { useAttendees } from '../hooks/useAttendees'
+import { usePeople } from '../hooks/usePeople'
+import { syncMentions } from '../lib/mentions'
 import { useToast } from '../contexts/ToastContext'
+
+function AttendeeChips({ names }: { names: string[] }) {
+  const { people, create } = usePeople()
+  const navigate = useNavigate()
+
+  if (names.length === 0) return null
+
+  const createAndOpen = async (name: string) => {
+    const { data } = await create({ name, relationship_type: 'coworker' })
+    if (data) navigate(`/people/${data.id}`)
+  }
+
+  return (
+    <div className="flex gap-1.5 flex-wrap mt-2">
+      {names.map(name => {
+        const match = people.find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase())
+        return match ? (
+          <Link
+            key={name}
+            to={`/people/${match.id}`}
+            className="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-medium"
+          >
+            {name}
+          </Link>
+        ) : (
+          <button
+            key={name}
+            onClick={() => createAndOpen(name)}
+            className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors flex items-center gap-1"
+            title="Create Person"
+          >
+            {name} <RiUserAddLine size={11} />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export function TranscriptDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -32,6 +72,7 @@ export function TranscriptDetailPage() {
   )
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
   const { names: knownAttendees, syncNames: syncAttendees } = useAttendees()
+  const { people: allPeople } = usePeople()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -130,6 +171,12 @@ export function TranscriptDetailPage() {
 
       // Persist new attendee names so they appear in future suggestions
       if (attendees.length) await syncAttendees(attendees)
+
+      // Link attendees who already exist in People — no notes or reminders created
+      const matchedPersonIds = attendees
+        .map(name => allPeople.find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase())?.id)
+        .filter((pid): pid is string => Boolean(pid))
+      await syncMentions({ personIds: matchedPersonIds, sourceType: 'meeting', sourceId: id! })
 
       addToast('Saved', 'success')
       setIsEditing(false)
@@ -246,11 +293,8 @@ export function TranscriptDetailPage() {
             <RiArrowLeftLine size={13} /> All meeting notes
           </button>
           <h1 className="text-2xl font-bold text-gray-900">{title || 'Untitled Meeting'}</h1>
-          {(formattedDate || attendees.length > 0) && (
-            <p className="text-sm text-gray-400 mt-1">
-              {[formattedDate, attendees.join(', ')].filter(Boolean).join(' · ')}
-            </p>
-          )}
+          {formattedDate && <p className="text-sm text-gray-400 mt-1">{formattedDate}</p>}
+          <AttendeeChips names={attendees} />
           <div className="flex gap-2 flex-wrap mt-4">
             <Button variant="secondary" size="sm" onClick={() => setExtractModal(true)}>
               <RiSparklingLine size={14} className="mr-1" /> Extract actions

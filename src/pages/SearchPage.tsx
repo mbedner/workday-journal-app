@@ -13,7 +13,7 @@ import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 
 const typeVariants: Record<string, 'indigo' | 'green' | 'blue' | 'yellow'> = {
-  journal: 'indigo', task: 'green', transcript: 'blue',
+  journal: 'indigo', task: 'green', transcript: 'blue', person: 'yellow',
 }
 
 export function SearchPage() {
@@ -33,7 +33,7 @@ export function SearchPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const [{ data: journals }, { data: tasks }, { data: transcripts }] = await Promise.all([
+      const [{ data: journals }, { data: tasks }, { data: transcripts }, { data: people }] = await Promise.all([
         supabase.from('journal_entries').select(`
           id, entry_date, focus, accomplished, needs_attention, reflection,
           journal_entry_projects(projects(name)),
@@ -49,6 +49,10 @@ export function SearchPage() {
           transcript_projects(projects(name)),
           transcript_tags(tags(name))
         `),
+        supabase.from('people').select(`
+          id, name, role, organization, where_met, updated_at,
+          person_notes(content, tags)
+        `).is('archived_at', null),
       ])
 
       const items: SearchResult[] = [
@@ -83,6 +87,20 @@ export function SearchPage() {
           projects: (t.transcript_projects ?? []).map((r: any) => r.projects?.name).filter(Boolean),
           url: `/transcripts/${t.id}`,
         })),
+        ...(people ?? []).map((p: any) => {
+          const noteTags = (p.person_notes ?? []).flatMap((n: any) => n.tags ?? [])
+          const noteBody = (p.person_notes ?? []).map((n: any) => n.content).join(' ')
+          return {
+            id: p.id,
+            type: 'person' as const,
+            title: p.name,
+            date: p.updated_at?.slice(0, 10),
+            body: [p.role, p.organization, p.where_met, noteBody].filter(Boolean).join(' '),
+            tags: [...new Set(noteTags)] as string[],
+            projects: [],
+            url: `/people/${p.id}`,
+          }
+        }),
       ]
 
       setAllItems(items)
@@ -118,7 +136,7 @@ export function SearchPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Search</h1>
-        <p className="text-sm text-gray-500">Search across journals, tasks, and transcripts</p>
+        <p className="text-sm text-gray-500">Search across journals, tasks, transcripts, and people</p>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -134,6 +152,7 @@ export function SearchPage() {
           <option value="journal">Journals</option>
           <option value="task">Tasks</option>
           <option value="transcript">Meeting Notes</option>
+          <option value="person">People</option>
         </Select>
       </div>
 

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { format, startOfWeek, endOfWeek, parseISO, isWithinInterval, subMonths, addMonths, isPast, isToday } from 'date-fns'
+import { format, formatDistanceToNow, startOfWeek, endOfWeek, parseISO, isWithinInterval, subMonths, addMonths, subDays, isPast, isToday } from 'date-fns'
 import { supabase } from '../lib/supabase'
 import { JournalEntry, Task, Transcript } from '../types'
-import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine, RiSparklingLine } from '@remixicon/react'
+import { RiArrowRightSLine, RiCircleLine, RiCheckboxCircleLine, RiSparklingLine, RiUserLine } from '@remixicon/react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -12,6 +12,14 @@ import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkCalendar, SkListCard } from '../components/ui/Skeleton'
 import { WeeklyRecapModal } from '../components/ui/WeeklyRecapModal'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
+
+interface RecentMention {
+  personId: string
+  name: string
+  journalCount: number
+  meetingCount: number
+  latest: string
+}
 
 function statusVariant(status: Task['status']): 'yellow' | 'blue' | 'green' | 'red' | 'gray' {
   return { todo: 'yellow', in_progress: 'blue', done: 'green', blocked: 'red' }[status] as 'yellow' | 'blue' | 'green' | 'red'
@@ -57,6 +65,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
   const [recapOpen, setRecapOpen] = useState(false)
+  const [recentMentions, setRecentMentions] = useState<RecentMention[]>([])
 
   // Calendar data — 6 months back to 6 months forward
   const [calJournals, setCalJournals]       = useState<{ id: string; entry_date: string; focus: string | null }[]>([])
@@ -94,6 +103,43 @@ export function DashboardPage() {
       setLoading(false)
     })
   }, [today])
+
+  // Recently mentioned people — loaded separately, never blocks main dashboard
+  useEffect(() => {
+    const sevenDaysAgo = subDays(new Date(), 7).toISOString()
+    supabase
+      .from('person_mentions')
+      .select('person_id, source_type, created_at, people(name)')
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        const byPerson = new Map<string, RecentMention>()
+        for (const m of (data ?? []) as any[]) {
+          const existing = byPerson.get(m.person_id)
+          if (existing) {
+            if (m.source_type === 'journal') existing.journalCount++
+            if (m.source_type === 'meeting') existing.meetingCount++
+          } else {
+            byPerson.set(m.person_id, {
+              personId: m.person_id,
+              name: m.people?.name ?? 'Unknown',
+              journalCount: m.source_type === 'journal' ? 1 : 0,
+              meetingCount: m.source_type === 'meeting' ? 1 : 0,
+              latest: m.created_at,
+            })
+          }
+        }
+        setRecentMentions([...byPerson.values()].slice(0, 5))
+      })
+  }, [])
+
+  const mentionLabel = (m: RecentMention) => {
+    const total = m.journalCount + m.meetingCount
+    if (total === 1) return `Mentioned ${formatDistanceToNow(new Date(m.latest), { addSuffix: true })}`
+    if (m.journalCount > 0 && m.meetingCount === 0) return `Mentioned in ${m.journalCount} entries this week`
+    if (m.meetingCount > 0 && m.journalCount === 0) return `Mentioned in ${m.meetingCount} meetings`
+    return `Mentioned ${total} times this week`
+  }
 
   const toggleDone = async (task: Task) => {
     setToggling(task.id)
@@ -366,6 +412,34 @@ export function DashboardPage() {
           )}
         </section>
       </div>
+
+      {/* Recently Mentioned People — minimal, no scoring or reminders */}
+      {recentMentions.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recently Mentioned People</h3>
+            <Link to="/people" className="text-xs text-indigo-600 hover:underline font-medium">View all</Link>
+          </div>
+          <Card padding={false}>
+            <ul className="divide-y divide-gray-100">
+              {recentMentions.map(m => (
+                <li key={m.personId}>
+                  <Link to={`/people/${m.personId}`} className="px-4 py-3 flex items-center gap-3 hover:bg-indigo-50/60 transition-colors group">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                      <RiUserLine size={15} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{m.name}</p>
+                      <p className="text-xs text-gray-400">{mentionLabel(m)}</p>
+                    </div>
+                    <RiArrowRightSLine size={16} className="text-gray-300 group-hover:text-indigo-400 transition shrink-0" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
 
       <WeeklyRecapModal open={recapOpen} onClose={() => setRecapOpen(false)} />
     </div>

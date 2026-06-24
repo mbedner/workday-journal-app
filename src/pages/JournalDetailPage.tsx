@@ -15,6 +15,8 @@ import { Sk } from '../components/ui/Skeleton'
 import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
+import { usePeople } from '../hooks/usePeople'
+import { extractMentionedPeople, syncMentions } from '../lib/mentions'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../contexts/ToastContext'
 
@@ -30,6 +32,7 @@ export function JournalDetailPage() {
     [allProjects]
   )
   const { tags: allTags, findOrCreate: findOrCreateTag } = useTags()
+  const { people: allPeople } = usePeople()
 
   const [_entry, setEntry] = useState<JournalEntry | null>(null)
   const [loading, setLoading] = useState(true)
@@ -142,6 +145,10 @@ export function JournalDetailPage() {
         if (projRows.length) await supabase.from('journal_entry_projects').insert(projRows)
         if (tagRows.length) await supabase.from('journal_entry_tags').insert(tagRows)
 
+        // Resolve @mentions in the entry text against known people — no notes or reminders created
+        const mentionText = [focus, accomplished, needsAttention, reflection].filter(Boolean).join(' ')
+        const mentioned = extractMentionedPeople(mentionText, allPeople)
+        await syncMentions({ personIds: mentioned.map(p => p.id), sourceType: 'journal', sourceId: id })
       }
 
       addToast('Journal saved', 'success')
@@ -310,6 +317,11 @@ export function JournalDetailPage() {
       </div>
 
       <div className="space-y-5">
+        {allPeople.length > 0 && (
+          <p className="text-xs text-gray-400">
+            Tip: mention someone with <span className="font-mono text-gray-500">@Name</span> to link this entry to their profile in People.
+          </p>
+        )}
         <div>
           <RichTextEditor
             label="Today's focus"
