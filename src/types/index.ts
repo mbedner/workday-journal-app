@@ -80,7 +80,7 @@ export interface Subtask {
 
 export interface SearchResult {
   id: string
-  type: 'journal' | 'task' | 'transcript'
+  type: 'journal' | 'task' | 'transcript' | 'person'
   title: string
   date?: string
   body: string
@@ -88,4 +88,44 @@ export interface SearchResult {
   projects: string[]
   status?: string
   url: string
+}
+
+export type RelationshipType = 'coworker' | 'friend' | 'family' | 'acquaintance' | 'other'
+
+export interface Person {
+  id: string
+  user_id: string
+  name: string
+  relationship_type: RelationshipType
+  role: string | null
+  organization: string | null
+  where_met: string | null
+  avatar_url: string | null
+  /** Lightweight freeform sections, e.g. { Family: ['Married', 'Two children'], Interests: ['Hiking'] } */
+  snapshot: Record<string, string[]>
+  last_viewed_at: string | null
+  created_at: string
+  updated_at: string
+  archived_at?: string | null
+  // Loaded client-side after fetch
+  mention_count?: number
+}
+
+export interface PersonNote {
+  id: string
+  person_id: string
+  user_id: string
+  content: string
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PersonMention {
+  id: string
+  person_id: string
+  user_id: string
+  source_type: 'journal' | 'meeting' | 'project'
+  source_id: string
+  created_at: string
 }

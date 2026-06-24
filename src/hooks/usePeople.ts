@@ -1,0 +1,112 @@
+import { useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { Person, RelationshipType } from '../types'
+
+export interface NewPersonInput {
+  name: string
+  relationship_type: RelationshipType
+  role?: string
+  organization?: string
+  where_met?: string
+  avatar_url?: string
+}
+
+export function usePeople() {
+  const [people, setPeople] = useState<Person[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('people')
+      .select('*')
+      .is('archived_at', null)
+      .order('name')
+    setPeople(data ?? [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const create = async (input: NewPersonInput) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('people')
+      .insert({
+        user_id: user!.id,
+        name: input.name.trim(),
+        relationship_type: input.relationship_type,
+        role: input.role || null,
+        organization: input.organization || null,
+        where_met: input.where_met || null,
+        avatar_url: input.avatar_url || null,
+      })
+      .select()
+      .single()
+    if (!error) {
+      setPeople(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      // Register as a known attendee too, so they show up as a meeting note suggestion
+      await supabase.from('attendees').upsert(
+        { user_id: user!.id, name: input.name.trim() },
+        { onConflict: 'user_id,name', ignoreDuplicates: true }
+      )
+    }
+    return { data, error }
+  }
+
+  /**
+   * Ensure every attendee name has a matching Person, creating one (as 'coworker') if needed.
+   * Returns the resolved Person for each name — safe to use immediately, unlike `people` state
+   * which won't reflect creations made in this same call until the next render.
+   */
+  const syncFromAttendees = async (attendeeNames: string[]): Promise<Person[]> => {
+    const byName = new Map(people.map(p => [p.name.trim().toLowerCase(), p]))
+    const resolved: Person[] = []
+    const seen = new Set<string>()
+    for (const rawName of attendeeNames) {
+      const key = rawName.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      let person = byName.get(key)
+      if (!person) {
+        const { data } = await create({ name: rawName, relationship_type: 'coworker' })
+        if (data) { person = data; byName.set(key, data) }
+      }
+      if (person) resolved.push(person)
+    }
+    return resolved
+  }
+
+  const update = async (id: string, patch: Partial<NewPersonInput> & { snapshot?: Record<string, string[]> }) => {
+    const { data, error } = await supabase
+      .from('people')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+    if (!error) setPeople(prev => prev.map(p => p.id === id ? data : p).sort((a, b) => a.name.localeCompare(b.name)))
+    return { data, error }
+  }
+
+  const markViewed = async (id: string) => {
+    await supabase.from('people').update({ last_viewed_at: new Date().toISOString() }).eq('id', id)
+  }
+
+  /** Soft-delete: sets archived_at instead of deleting the row */
+  const remove = async (id: string) => {
+    const { error } = await supabase
+      .from('people')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+    if (!error) setPeople(prev => prev.filter(p => p.id !== id))
+    return { error }
+  }
+
+  /** Find a person by exact name match (case-insensitive) — used for mention matching */
+  const findByName = (name: string): Person | undefined => {
+    const target = name.trim().toLowerCase()
+    return people.find(p => p.name.trim().toLowerCase() === target)
+  }
+
+  return { people, loading, refetch: fetch, create, update, remove, markViewed, findByName, syncFromAttendees }
+}
