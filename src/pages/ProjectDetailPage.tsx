@@ -22,20 +22,7 @@ import { StarRating } from '../components/ui/StarRating'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
-
-function stripMarkup(text: string): string {
-  if (!text) return ''
-  return text
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^[-*+]\s+/gm, '')
-    .replace(/\n+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-}
+import { stripMarkup } from '../lib/text'
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
 

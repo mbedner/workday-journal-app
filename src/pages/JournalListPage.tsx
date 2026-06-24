@@ -15,24 +15,9 @@ import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 import { ProjectTag } from '../components/ui/ProjectTag'
+import { stripMarkup } from '../lib/text'
 
 const PAGE_SIZE = 60
-
-function stripMarkup(text: string): string {
-  if (!text) return ''
-  return text
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^[-*+]\s+/gm, '')
-    .replace(/^\d+\.\s+/gm, '')
-    .replace(/\n+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-}
 
 type ProjectMap = Record<string, string[]>
 type GroupBy = 'none' | 'project' | 'week' | 'month'

@@ -10,6 +10,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { SearchResult } from '../types'
 import { Badge } from './ui/Badge'
+import { stripMarkup as toPlainText } from '../lib/text'
 
 const typeVariants: Record<string, 'indigo' | 'green' | 'blue' | 'yellow'> = {
   journal: 'indigo', task: 'green', transcript: 'blue', person: 'yellow',
@@ -22,23 +23,6 @@ const typeLabels: Record<string, string> = {
 interface Props {
   open: boolean
   onClose: () => void
-}
-
-/** Strip HTML tags and markdown syntax to get plain indexable text */
-function toPlainText(text: string | null | undefined): string {
-  if (!text) return ''
-  return text
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/^[-*+]\s+/gm, '')
-    .replace(/^\d+\.\s+/gm, '')
-    .replace(/\n+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
 }
 
 /** Return a ~150-char excerpt around the first occurrence of `query` in `text` */
