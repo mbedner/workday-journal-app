@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { REFERENCE_LIST_LIMIT } from '../lib/constants'
 import { Person, RelationshipType } from '../types'
 
 export interface NewPersonInput {
@@ -22,6 +23,7 @@ export function usePeople() {
       .select('*')
       .is('archived_at', null)
       .order('name')
+      .limit(REFERENCE_LIST_LIMIT)
     setPeople(data ?? [])
     setLoading(false)
   }, [])
