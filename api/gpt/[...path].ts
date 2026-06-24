@@ -109,6 +109,20 @@ function clamp(value: unknown, max: number): number {
 }
 function dateOk(d: string) { return /^\d{4}-\d{2}-\d{2}$/.test(d) }
 
+/**
+ * Build a properly-escaped PostgREST "contains" ilike filter fragment, e.g.
+ * `ilike.%22*term*%22`. encodeURIComponent alone only protects the value
+ * during URL transit — PostgREST decodes it back to literal characters
+ * before parsing `or=(...)` filter syntax, so a needle containing a comma
+ * or parenthesis could otherwise break out of its intended clause.
+ * Wrapping the value in double quotes (PostgREST's own escaping convention)
+ * makes those characters literal again once decoded server-side.
+ */
+function ilikeContains(value: string): string {
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `ilike.${encodeURIComponent(`"*${escaped}*"`)}`
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>
@@ -279,7 +293,7 @@ async function handleMeetingNotes(req: VercelRequest, res: VercelResponse) {
   ]
   if (q.startDate) params.push(`meeting_date=gte.${q.startDate}`)
   if (q.endDate)   params.push(`meeting_date=lte.${q.endDate}`)
-  if (q.attendee)  params.push(`attendees=ilike.*${encodeURIComponent(q.attendee)}*`)
+  if (q.attendee)  params.push(`attendees=${ilikeContains(q.attendee)}`)
 
   try {
     const client = db()
@@ -505,16 +519,15 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
   if (q.startDate && !dateOk(q.startDate)) { res.status(400).json(e('INVALID_DATE', 'startDate must be YYYY-MM-DD')); return }
   if (q.endDate   && !dateOk(q.endDate))   { res.status(400).json(e('INVALID_DATE', 'endDate must be YYYY-MM-DD'));   return }
 
-  const enc = (s: string) => encodeURIComponent(s)
-
   try {
     const client  = db()
     const fetches: Promise<any[]>[] = []
+    const term = ilikeContains(needle)
 
     if (types.includes('entries')) {
       const params = [
         `user_id=eq.${userId}`, `archived_at=is.null`,
-        `or=(focus.ilike.*${enc(needle)}*,accomplished.ilike.*${enc(needle)}*,needs_attention.ilike.*${enc(needle)}*,reflection.ilike.*${enc(needle)}*)`,
+        `or=(focus.${term},accomplished.${term},needs_attention.${term},reflection.${term})`,
         `order=entry_date.desc`, `limit=${limit}`,
         `select=id,entry_date,focus,accomplished,needs_attention,reflection,journal_entry_projects(projects(name))`,
       ]
@@ -531,7 +544,7 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
     if (types.includes('tasks')) {
       const params = [
         `user_id=eq.${userId}`, `archived_at=is.null`,
-        `or=(title.ilike.*${enc(needle)}*,notes.ilike.*${enc(needle)}*)`,
+        `or=(title.${term},notes.${term})`,
         `order=created_at.desc`, `limit=${limit}`,
         `select=id,title,notes,status,created_at,task_projects(projects(name))`,
       ]
@@ -549,7 +562,7 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
     if (types.includes('meetings')) {
       const params = [
         `user_id=eq.${userId}`, `archived_at=is.null`,
-        `or=(meeting_title.ilike.*${enc(needle)}*,summary.ilike.*${enc(needle)}*,raw_transcript.ilike.*${enc(needle)}*,decisions.ilike.*${enc(needle)}*,action_items.ilike.*${enc(needle)}*)`,
+        `or=(meeting_title.${term},summary.${term},raw_transcript.${term},decisions.${term},action_items.${term})`,
         `order=meeting_date.desc`, `limit=${limit}`,
         `select=id,meeting_title,meeting_date,summary,decisions,attendees,transcript_projects(projects(name))`,
       ]
