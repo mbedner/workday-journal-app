@@ -19,30 +19,12 @@ import { Badge } from '../components/ui/Badge'
 import { TagInput } from '../components/ui/TagInput'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Sk } from '../components/ui/Skeleton'
+import { Avatar } from '../components/ui/Avatar'
 import { useToast } from '../contexts/ToastContext'
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
 
 const SNAPSHOT_SECTIONS = ['Family', 'Interests', 'Current Life', 'Communication']
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
-}
-
-function Avatar({ person, size = 64 }: { person: Person; size?: number }) {
-  if (person.avatar_url) {
-    return <img src={person.avatar_url} alt={person.name} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />
-  }
-  return (
-    <div
-      className="rounded-full bg-indigo-100 text-indigo-700 font-semibold flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.32 }}
-    >
-      {initials(person.name)}
-    </div>
-  )
-}
 
 interface JournalMention { id: string; entry_date: string; focus: string | null }
 interface MeetingMention { id: string; meeting_title: string; meeting_date: string | null }
@@ -251,7 +233,7 @@ export function PersonDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-start gap-4">
-          <Avatar person={person} />
+          <Avatar person={person} size={64} />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{person.name}</h1>
             {person.role && <p className="text-sm text-gray-500 mt-0.5">{person.role}</p>}

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { REFERENCE_LIST_LIMIT } from '../lib/constants'
 import { Project } from '../types'
 
 export function useProjects() {
@@ -14,6 +15,7 @@ export function useProjects() {
       .is('archived_at', null)
       .is('completed_at', null)
       .order('name')
+      .limit(REFERENCE_LIST_LIMIT)
     setProjects(data ?? [])
     setLoading(false)
   }, [])

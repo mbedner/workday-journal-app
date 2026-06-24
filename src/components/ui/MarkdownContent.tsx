@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -23,10 +24,15 @@ export function MarkdownContent({ content, className = '' }: Props) {
   const isHtml = content.trim().startsWith('<')
 
   if (isHtml) {
+    // RichTextEditor sets target="_blank" on links; DOMPurify omits it by
+    // default (it's not in the safe-list), so it's allowed back explicitly.
+    // rel="noopener noreferrer" is preserved separately, closing the
+    // reverse-tabnabbing gap that target="_blank" alone would open.
+    const sanitized = DOMPurify.sanitize(content, { ADD_ATTR: ['target'] })
     return (
       <div
         className={`${proseBase} ${className}`}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitized }}
       />
     )
   }

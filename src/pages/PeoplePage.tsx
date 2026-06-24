@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
-import { RiUserLine, RiArrowRightSLine } from '@remixicon/react'
+import { RiArrowRightSLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Person } from '../types'
 import { usePeople, NewPersonInput } from '../hooks/usePeople'
@@ -12,6 +12,7 @@ import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Badge } from '../components/ui/Badge'
+import { Avatar } from '../components/ui/Avatar'
 import { SkGridCards, SkListCard } from '../components/ui/Skeleton'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 import { ViewToggle, ViewMode } from '../components/ui/ViewToggle'
@@ -35,24 +36,6 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'most_mentioned',   label: 'Most mentioned' },
 ]
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
-}
-
-function Avatar({ person, size = 40 }: { person: Person; size?: number }) {
-  if (person.avatar_url) {
-    return <img src={person.avatar_url} alt={person.name} className="rounded-full object-cover shrink-0" style={{ width: size, height: size }} />
-  }
-  return (
-    <div
-      className="rounded-full bg-indigo-100 text-indigo-700 font-semibold flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.36 }}
-    >
-      {initials(person.name) || <RiUserLine size={size * 0.5} />}
-    </div>
-  )
-}
 
 export function PeoplePage() {
   const navigate = useNavigate()

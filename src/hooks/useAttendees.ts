@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { REFERENCE_LIST_LIMIT } from '../lib/constants'
 
 interface Attendee {
   id: string
@@ -16,6 +17,7 @@ export function useAttendees() {
       .from('attendees')
       .select('id, name')
       .order('name')
+      .limit(REFERENCE_LIST_LIMIT)
     setAttendees(data ?? [])
     setLoading(false)
   }, [])

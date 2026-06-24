@@ -15,6 +15,7 @@ import { Modal } from '../components/ui/Modal'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
+import { stripMarkup } from '../lib/text'
 import { SkListCard, SkGridCards, SkCalendar } from '../components/ui/Skeleton'
 import { FilterSheet, FilterTrigger, FilterRow } from '../components/ui/FilterSheet'
 import { ProjectTag } from '../components/ui/ProjectTag'
@@ -41,11 +42,6 @@ function groupDateSortKey(dateStr: string, mode: 'week' | 'month'): string {
     if (mode === 'week') return format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return dateStr.slice(0, 7)
   } catch { return '' }
-}
-
-function stripMarkup(text: string): string {
-  if (!text) return ''
-  return text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim()
 }
 
 const priorityVariants: Record<Priority, 'red' | 'yellow' | 'gray'> = {

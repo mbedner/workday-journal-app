@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { REFERENCE_LIST_LIMIT } from '../lib/constants'
 import { Tag } from '../types'
 
 export function useTags() {
@@ -8,7 +9,7 @@ export function useTags() {
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('tags').select('*').order('name')
+    const { data } = await supabase.from('tags').select('*').order('name').limit(REFERENCE_LIST_LIMIT)
     setTags(data ?? [])
     setLoading(false)
   }, [])

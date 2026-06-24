@@ -12,6 +12,7 @@ import { StarRating } from '../components/ui/StarRating'
 import { Sk, SkCalendar, SkListCard } from '../components/ui/Skeleton'
 import { WeeklyRecapModal } from '../components/ui/WeeklyRecapModal'
 import { CalendarView, CalendarItem } from '../components/ui/CalendarView'
+import { stripMarkup } from '../lib/text'
 
 interface RecentMention {
   personId: string
@@ -37,21 +38,6 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
       {sub && <span className="text-[10px] sm:text-xs text-gray-400">{sub}</span>}
     </div>
   )
-}
-
-function stripMarkup(text: string): string {
-  if (!text) return ''
-  let plain = text.replace(/<[^>]+>/g, ' ')
-  plain = plain
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^[-*+]\s+/gm, '')
-    .replace(/\n+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  return plain
 }
 
 export function DashboardPage() {
