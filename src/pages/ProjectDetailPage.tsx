@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   RiArrowLeftLine,
@@ -9,33 +9,19 @@ import {
   RiBookOpenLine,
   RiFileList3Line,
   RiCheckboxLine,
-  RiScalesLine,
-  RiAddLine,
-  RiMoreLine,
-  RiLoader4Line,
-  RiCheckLine,
 } from '@remixicon/react'
 import { format, parseISO, isToday, isPast, subDays } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import { Project, Task, JournalEntry, Transcript, Decision } from '../types'
+import { Project, Task, JournalEntry, Transcript } from '../types'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { StarRating } from '../components/ui/StarRating'
 import { useToast } from '../contexts/ToastContext'
 import { useProjects } from '../hooks/useProjects'
 import { Sk, SkListCard } from '../components/ui/Skeleton'
-import {
-  fetchDecisions,
-  createDecision,
-  updateDecision,
-  deleteDecision,
-  backfillDecisions,
-  purgeDecisionsBySource,
-} from '../lib/decisions'
 
 function stripMarkup(text: string): string {
   if (!text) return ''
@@ -77,305 +63,6 @@ function StatCard({ label, value, icon: Icon, color, onClick, badge }: {
   return onClick ? <button onClick={onClick} className="text-left w-full">{inner}</button> : inner
 }
 
-// ── Type badge (inline) ───────────────────────────────────────────────────────
-
-const TYPE_BADGE: Record<string, string> = {
-  strategic:   'bg-violet-50 text-violet-700',
-  tactical:    'bg-sky-50 text-sky-700',
-  operational: 'bg-slate-100 text-slate-600',
-}
-
-// ── Compact decision table row ────────────────────────────────────────────────
-
-function DecisionRow({ decision, transcripts, onMenu }: {
-  decision:    Decision
-  transcripts: Transcript[]
-  onMenu?:     (d: Decision, anchor: HTMLElement) => void
-}) {
-  const src = (() => {
-    if (decision.source_type === 'meeting_note') {
-      const t = transcripts.find(x => x.id === decision.source_id)
-      return { label: t?.meeting_title ?? 'Meeting note', url: `/transcripts/${decision.source_id}` }
-    }
-    if (decision.source_type === 'journal_entry') {
-      return { label: `Journal · ${format(new Date(decision.date + 'T12:00:00'), 'MMM d')}`, url: `/journal/${decision.date}` }
-    }
-    return null
-  })()
-
-  const isSuperseded = decision.status === 'superseded'
-
-  return (
-    <tr className={`group ${isSuperseded ? 'opacity-40' : ''}`}>
-      <td className="px-4 py-2.5 w-full max-w-0">
-        <p className={`text-sm font-medium leading-snug line-clamp-2 ${isSuperseded ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-          {decision.content}
-        </p>
-        {decision.excerpt && (
-          <p className="text-xs text-gray-400 italic line-clamp-1 mt-0.5">"{decision.excerpt}"</p>
-        )}
-      </td>
-      <td className="px-2 py-2.5 whitespace-nowrap hidden sm:table-cell">
-        {decision.type && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium capitalize ${TYPE_BADGE[decision.type] ?? 'bg-gray-100 text-gray-600'}`}>
-            {decision.type}
-          </span>
-        )}
-      </td>
-      <td className="px-2 py-2.5 whitespace-nowrap text-xs text-gray-400">
-        {format(new Date(decision.date + 'T12:00:00'), 'MMM d')}
-      </td>
-      <td className="px-2 py-2.5 whitespace-nowrap hidden md:table-cell max-w-[140px]">
-        {src ? (
-          <Link to={src.url} className="text-xs text-indigo-500 hover:underline font-medium block truncate" title={src.label}>
-            {src.label}
-          </Link>
-        ) : (
-          <span className="text-xs text-gray-300">Manual</span>
-        )}
-      </td>
-      <td className="px-2 py-2.5 w-8">
-        {onMenu && (
-          <button
-            onClick={e => onMenu(decision, e.currentTarget)}
-            className="p-1 rounded-md text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition opacity-0 group-hover:opacity-100"
-          >
-            <RiMoreLine size={14} />
-          </button>
-        )}
-      </td>
-    </tr>
-  )
-}
-
-// ── Review modal ──────────────────────────────────────────────────────────────
-
-function ReviewModal({ decisions, journals, transcripts, onClose, onRefresh }: {
-  decisions:   Decision[]
-  journals:    JournalEntry[]
-  transcripts: Transcript[]
-  onClose:     () => void
-  onRefresh:   () => void
-}) {
-  const { addToast } = useToast()
-  const [index,   setIndex]   = useState(0)
-  const [editing, setEditing] = useState(false)
-  const [text,    setText]    = useState('')
-  const [busy,    setBusy]    = useState(false)
-
-  const current = decisions[index]
-
-  const advance = () => {
-    if (index + 1 >= decisions.length) { onRefresh(); onClose() }
-    else { setIndex(i => i + 1); setEditing(false) }
-  }
-
-  const confirm = async () => {
-    if (!current) return
-    setBusy(true)
-    try {
-      await updateDecision(current.id, { status: 'active', ...(editing && text.trim() ? { content: text.trim() } : {}) })
-      advance()
-    } catch { addToast('Failed to confirm', 'error') }
-    finally { setBusy(false) }
-  }
-
-  const dismiss = async () => {
-    if (!current) return
-    setBusy(true)
-    try { await updateDecision(current.id, { status: 'dismissed' }); advance() }
-    catch { addToast('Failed to dismiss', 'error') }
-    finally { setBusy(false) }
-  }
-
-  if (!current) return null
-
-  const sourceLabel = (() => {
-    if (current.source_type === 'journal_entry') {
-      const entry = journals.find(j => j.id === current.source_id)
-      return `Journal · ${format(new Date((entry?.entry_date ?? current.date) + 'T12:00:00'), 'MMM d, yyyy')}`
-    }
-    const t = transcripts.find(x => x.id === current.source_id)
-    return t?.meeting_title ?? 'Meeting note'
-  })()
-
-  const confidenceColor = current.confidence === 'high' ? 'text-green-600' : current.confidence === 'medium' ? 'text-amber-600' : 'text-red-500'
-
-  return (
-    <Modal open onClose={onClose} title={`Review decisions (${index + 1} of ${decisions.length})`}>
-      <div className="space-y-4">
-        {/* Decision text */}
-        {editing ? (
-          <Textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            rows={3}
-            autoFocus
-            className="w-full"
-          />
-        ) : (
-          <p className="text-sm text-gray-800 leading-relaxed bg-gray-50 rounded-lg px-3 py-2.5">
-            {current.content}
-          </p>
-        )}
-
-        {/* Meta */}
-        <div className="space-y-1.5 text-xs text-gray-500">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-600">Source:</span>
-            <span>{sourceLabel}</span>
-            <span>·</span>
-            <span>{format(new Date(current.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
-          </div>
-          {current.excerpt && (
-            <p className="italic text-gray-400 border-l-2 border-gray-200 pl-2 leading-relaxed">
-              "{current.excerpt}"
-            </p>
-          )}
-          {current.confidence && (
-            <p>AI confidence: <span className={`font-medium ${confidenceColor}`}>{current.confidence}</span></p>
-          )}
-          {current.people.length > 0 && (
-            <div className="flex gap-1 flex-wrap pt-0.5">
-              {current.people.map(p => (
-                <span key={p} className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{p}</span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-1 flex-wrap">
-          {editing ? (
-            <>
-              <Button onClick={confirm} loading={busy} disabled={!text.trim()}>
-                <RiCheckLine size={14} /> Confirm edit
-              </Button>
-              <Button variant="secondary" onClick={() => setEditing(false)}>Cancel edit</Button>
-            </>
-          ) : (
-            <>
-              <Button onClick={confirm} loading={busy}>
-                <RiCheckLine size={14} /> Confirm
-              </Button>
-              <Button variant="secondary" onClick={() => { setEditing(true); setText(current.content) }}>
-                Edit &amp; Confirm
-              </Button>
-            </>
-          )}
-          <Button variant="secondary" onClick={dismiss} loading={busy}>Dismiss</Button>
-          <button onClick={onClose} className="ml-auto text-xs text-gray-400 hover:text-gray-600">
-            Review later
-          </button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── Add decision modal ────────────────────────────────────────────────────────
-
-function AddDecisionModal({ projectId, userId, transcripts, onClose, onSaved }: {
-  projectId:   string
-  userId:      string
-  transcripts: Transcript[]
-  onClose:     () => void
-  onSaved:     (d: Decision) => void
-}) {
-  const { addToast } = useToast()
-  const [content,      setContent]      = useState('')
-  const [date,         setDate]         = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [decisionType, setDecisionType] = useState<Decision['type']>(null)
-  const [sourceId,     setSourceId]     = useState('')
-  const [people,       setPeople]       = useState('')
-  const [notes,        setNotes]        = useState('')
-  const [saving,       setSaving]       = useState(false)
-
-  const save = async () => {
-    if (!content.trim()) return
-    setSaving(true)
-    try {
-      const d = await createDecision({
-        project_id:  projectId,
-        user_id:     userId,
-        content:     content.trim(),
-        date,
-        type:        decisionType ?? undefined,
-        source_type: sourceId ? 'meeting_note' : 'manual',
-        source_id:   sourceId || null,
-        people:      people.split(',').map(s => s.trim()).filter(Boolean),
-        notes:       notes || undefined,
-      })
-      onSaved(d)
-      onClose()
-      addToast('Decision added', 'success')
-    } catch (e: any) {
-      addToast(e.message ?? 'Failed to add decision', 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title="Add decision">
-      <div className="space-y-4">
-        <Textarea
-          label="Decision"
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder='e.g. The MVP will not replace the existing search experience'
-          rows={3}
-          autoFocus
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
-            <Select value={decisionType ?? ''} onChange={e => setDecisionType((e.target.value || null) as Decision['type'])}>
-              <option value="">— None —</option>
-              <option value="strategic">Strategic</option>
-              <option value="tactical">Tactical</option>
-              <option value="operational">Operational</option>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
-            <Select value={sourceId} onChange={e => setSourceId(e.target.value)}>
-              <option value="">Manual</option>
-              {transcripts.map(t => (
-                <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
-              ))}
-            </Select>
-          </div>
-        </div>
-        <Input
-          label="Date"
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          max={format(new Date(), 'yyyy-MM-dd')}
-        />
-        <Input
-          label="People (optional)"
-          value={people}
-          onChange={e => setPeople(e.target.value)}
-          placeholder="Alice Smith, Bob Jones"
-        />
-        <Textarea
-          label="Notes (optional)"
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          placeholder="Context about why this was decided"
-          rows={2}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} loading={saving} disabled={!content.trim()}>Add decision</Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ProjectDetailPage() {
@@ -388,14 +75,8 @@ export function ProjectDetailPage() {
   const [tasks,       setTasks]       = useState<Task[]>([])
   const [journals,    setJournals]    = useState<JournalEntry[]>([])
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
-  const [decisions,   setDecisions]   = useState<Decision[]>([])
   const [loading,     setLoading]     = useState(true)
   const [toggling,    setToggling]    = useState<string | null>(null)
-  const [userId,      setUserId]      = useState<string>('')
-
-  // Backfill / cleanup
-  const [backfilling, setBackfilling] = useState(false)
-  const [cleaning,    setCleaning]    = useState(false)
 
   // Edit project modal
   const [editOpen, setEditOpen] = useState(false)
@@ -403,27 +84,9 @@ export function ProjectDetailPage() {
   const [editDesc, setEditDesc] = useState('')
   const [saving,   setSaving]   = useState(false)
 
-  // Decision UI
-  const [reviewOpen,    setReviewOpen]    = useState(false)
-  const [addOpen,       setAddOpen]       = useState(false)
-  const [editDecision,  setEditDecision]  = useState<Decision | null>(null)
-  const [editText,      setEditText]      = useState('')
-  const [editType,      setEditType]      = useState<Decision['type']>(null)
-  const [editSourceId,  setEditSourceId]  = useState('')
-  const [editPeople,    setEditPeople]    = useState('')
-  const [editNotes,     setEditNotes]     = useState('')
-  const [editSaving,    setEditSaving]    = useState(false)
-  const [menuDecision,  setMenuDecision]  = useState<Decision | null>(null)
-  const [menuAnchor,    setMenuAnchor]    = useState<{ top: number; left: number } | null>(null)
-
-  const decisionsRef = useRef<HTMLElement>(null)
-
   useEffect(() => {
     if (!id) return
     setLoading(true)
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUserId(user.id)
-    })
 
     Promise.all([
       supabase.from('projects').select('*').eq('id', id).single(),
@@ -457,19 +120,6 @@ export function ProjectDetailPage() {
     })
   }, [id, navigate])
 
-  // Load decisions separately (don't block main load)
-  useEffect(() => {
-    if (!id) return
-    fetchDecisions(id, undefined, 1000)
-      .then(setDecisions)
-      .catch(() => { /* silent */ })
-  }, [id])
-
-  const reloadDecisions = () => {
-    if (!id) return
-    fetchDecisions(id, undefined, 1000).then(setDecisions).catch(() => {})
-  }
-
   const toggleDone = async (task: Task) => {
     setToggling(task.id)
     const newStatus = task.status === 'done' ? 'todo' : 'done'
@@ -499,72 +149,6 @@ export function ProjectDetailPage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  const handleBackfill = async () => {
-    if (!id || !userId) return
-    setBackfilling(true)
-    try {
-      const { extracted, remaining } = await backfillDecisions(id, userId)
-      const msg = remaining > 0
-        ? `${extracted} decision${extracted !== 1 ? 's' : ''} found · ${remaining} note${remaining !== 1 ? 's' : ''} left — scan again`
-        : extracted > 0
-          ? `${extracted} decision${extracted !== 1 ? 's' : ''} found · all notes scanned`
-          : 'All notes scanned · no new decisions found'
-      addToast(msg, 'success')
-      reloadDecisions()
-    } catch (e: any) {
-      addToast(e.message ?? 'Backfill failed', 'error')
-    } finally {
-      setBackfilling(false)
-    }
-  }
-
-  const handleCleanup = async () => {
-    if (!id) return
-    const count = decisions.filter(d => d.source_type === 'journal_entry').length
-    if (count === 0) { addToast('No journal-extracted decisions to remove', 'info'); return }
-    if (!window.confirm(`Remove ${count} decision${count !== 1 ? 's' : ''} extracted from journal entries?`)) return
-    setCleaning(true)
-    try {
-      const { deleted } = await purgeDecisionsBySource(id, 'journal_entry')
-      addToast(`Removed ${deleted} journal-extracted decision${deleted !== 1 ? 's' : ''}`, 'success')
-      reloadDecisions()
-    } catch (e: any) {
-      addToast(e.message ?? 'Cleanup failed', 'error')
-    } finally {
-      setCleaning(false)
-    }
-  }
-
-  const handleMenuAction = async (action: string) => {
-    if (!menuDecision) return
-    setMenuAnchor(null)
-    try {
-      if (action === 'edit') {
-        setEditDecision(menuDecision)
-        setEditText(menuDecision.content)
-        setEditType(menuDecision.type)
-        setEditSourceId(menuDecision.source_type === 'meeting_note' ? (menuDecision.source_id ?? '') : '')
-        setEditPeople((menuDecision.people ?? []).join(', '))
-        setEditNotes(menuDecision.notes ?? '')
-        return
-      } else if (action === 'supersede') {
-        await updateDecision(menuDecision.id, { status: 'superseded' })
-        reloadDecisions()
-      } else if (action === 'dismiss') {
-        await updateDecision(menuDecision.id, { status: 'dismissed' })
-        setDecisions(prev => prev.filter(d => d.id !== menuDecision.id))
-      } else if (action === 'delete') {
-        if (!window.confirm('Delete this decision?')) return
-        await deleteDecision(menuDecision.id)
-        setDecisions(prev => prev.filter(d => d.id !== menuDecision.id))
-        addToast('Decision deleted', 'success')
-      }
-    } catch (e: any) {
-      addToast(e.message ?? 'Action failed', 'error')
-    }
-    setMenuDecision(null)
   }
 
   if (loading) return (
@@ -608,14 +192,8 @@ export function ProjectDetailPage() {
     ((t.meeting_date ?? t.created_at)).slice(0, 10) >= twoWeeksAgo
   ).slice(0, 5)
 
-  const activeDecisions  = decisions.filter(d => d.status === 'active')
-  const pendingDecisions = decisions.filter(d => d.status === 'pending_review')
-  const recentDecisions  = activeDecisions.slice(0, 5)
-
-  const hasPending = pendingDecisions.length > 0
-
   return (
-    <div className="space-y-8" onClick={() => { if (menuAnchor) { setMenuAnchor(null); setMenuDecision(null) } }}>
+    <div className="space-y-8">
       {/* Header */}
       <div>
         <button
@@ -637,21 +215,11 @@ export function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Stats — 4 cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* Stats — 3 cards */}
+      <div className="grid grid-cols-3 gap-3">
         <StatCard label="Tasks"          value={tasks.length}      icon={RiCheckboxLine} color="bg-indigo-500" />
         <StatCard label="Journal entries" value={journals.length}   icon={RiBookOpenLine} color="bg-violet-500" />
         <StatCard label="Meeting notes"  value={transcripts.length} icon={RiFileList3Line} color="bg-blue-500" />
-        <StatCard
-          label="Decisions"
-          value={activeDecisions.length}
-          icon={RiScalesLine}
-          color="bg-amber-500"
-          onClick={() => decisionsRef.current?.scrollIntoView({ behavior: 'smooth' })}
-          badge={hasPending
-            ? <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-white" />
-            : undefined}
-        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -780,220 +348,6 @@ export function ProjectDetailPage() {
         </section>
       )}
 
-      {/* Decisions */}
-      <section ref={decisionsRef}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Decisions</h2>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
-              <RiAddLine size={14} /> Add
-            </Button>
-            <Link to={`/projects/${id}/decisions`} className="text-xs text-indigo-600 hover:underline font-medium">
-              View all
-            </Link>
-          </div>
-        </div>
-
-        {/* Pending review banner */}
-        {hasPending && (
-          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl mb-3">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <p className="text-sm text-amber-800 flex-1">
-              {pendingDecisions.length} extracted decision{pendingDecisions.length !== 1 ? 's' : ''} need{pendingDecisions.length === 1 ? 's' : ''} your review.
-            </p>
-            <button
-              onClick={() => setReviewOpen(true)}
-              className="text-sm font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2"
-            >
-              Review now
-            </button>
-          </div>
-        )}
-
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {activeDecisions.length === 0 ? (
-            <div className="px-4 py-8 text-center space-y-3">
-              <p className="text-sm text-gray-400">
-                No active decisions yet. Decisions are extracted from meeting notes, or you can add one manually.
-              </p>
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}>
-                  <RiAddLine size={14} /> Add manually
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleBackfill}
-                  disabled={backfilling}
-                >
-                  {backfilling ? <><RiLoader4Line size={14} className="animate-spin" /> Scanning…</> : 'Scan meeting notes'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <table className="w-full">
-                <thead className="border-b border-gray-100 bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</th>
-                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden sm:table-cell w-24">Type</th>
-                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide w-16">Date</th>
-                    <th className="px-2 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden md:table-cell w-36">Source</th>
-                    <th className="w-8" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {recentDecisions.map(d => (
-                    <DecisionRow
-                      key={d.id}
-                      decision={d}
-                      transcripts={transcripts}
-                      onMenu={(dec, anchor) => {
-                        const rect = anchor.getBoundingClientRect()
-                        setMenuDecision(dec)
-                        setMenuAnchor({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX - 140 })
-                      }}
-                    />
-                  ))}
-                </tbody>
-              </table>
-              {activeDecisions.length > 5 && (
-                <div className="px-4 py-3 text-center border-t border-gray-100">
-                  <Link to={`/projects/${id}/decisions`} className="text-xs text-indigo-600 hover:underline">
-                    View all {activeDecisions.length} decisions
-                  </Link>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Utility row: scan + cleanup */}
-        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            {decisions.some(d => d.source_type === 'journal_entry') && (
-              <button
-                onClick={handleCleanup}
-                disabled={cleaning}
-                className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
-              >
-                {cleaning ? <RiLoader4Line size={11} className="animate-spin" /> : null}
-                Remove journal-extracted decisions
-              </button>
-            )}
-          </div>
-          <button
-            onClick={handleBackfill}
-            disabled={backfilling}
-            className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 disabled:opacity-50"
-          >
-            {backfilling ? <RiLoader4Line size={12} className="animate-spin" /> : null}
-            {backfilling ? 'Scanning…' : 'Scan existing entries for decisions'}
-          </button>
-        </div>
-      </section>
-
-      {/* Backdrop + context menu */}
-      {menuAnchor && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => { setMenuAnchor(null); setMenuDecision(null) }}
-        />
-      )}
-      {menuAnchor && menuDecision && (
-        <div
-          className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44"
-          style={{ top: menuAnchor.top, left: menuAnchor.left }}
-        >
-          {[
-            { key: 'edit',      label: 'Edit' },
-            { key: 'supersede', label: 'Mark as superseded' },
-            { key: 'dismiss',   label: 'Dismiss' },
-            ...(menuDecision.source_type === 'manual' || menuDecision.status === 'dismissed'
-              ? [{ key: 'delete', label: 'Delete' }] : []),
-          ].map(item => (
-            <button
-              key={item.key}
-              onClick={() => handleMenuAction(item.key)}
-              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${item.key === 'delete' ? 'text-red-600' : 'text-gray-700'}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Edit decision modal */}
-      <Modal open={!!editDecision} onClose={() => setEditDecision(null)} title="Edit decision">
-        <div className="space-y-4">
-          <Textarea
-            label="Decision"
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            rows={4}
-            autoFocus
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Type (optional)</label>
-              <Select value={editType ?? ''} onChange={e => setEditType((e.target.value || null) as Decision['type'])}>
-                <option value="">— None —</option>
-                <option value="strategic">Strategic</option>
-                <option value="tactical">Tactical</option>
-                <option value="operational">Operational</option>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Source (optional)</label>
-              <Select value={editSourceId} onChange={e => setEditSourceId(e.target.value)}>
-                <option value="">Manual</option>
-                {transcripts.map(t => (
-                  <option key={t.id} value={t.id}>{t.meeting_title || 'Untitled meeting'}</option>
-                ))}
-              </Select>
-            </div>
-          </div>
-          <Input
-            label="People (optional)"
-            value={editPeople}
-            onChange={e => setEditPeople(e.target.value)}
-            placeholder="Alice Smith, Bob Jones"
-          />
-          <Textarea
-            label="Notes (optional)"
-            value={editNotes}
-            onChange={e => setEditNotes(e.target.value)}
-            placeholder="Context about why this was decided"
-            rows={2}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditDecision(null)}>Cancel</Button>
-            <Button
-              disabled={!editText.trim()}
-              loading={editSaving}
-              onClick={async () => {
-                if (!editDecision || !editText.trim()) return
-                setEditSaving(true)
-                try {
-                  const updated = await updateDecision(editDecision.id, {
-                    content: editText.trim(),
-                    type:    editType,
-                    people:  editPeople.split(',').map(s => s.trim()).filter(Boolean),
-                    notes:   editNotes || undefined,
-                  })
-                  setDecisions(prev => prev.map(d => d.id === updated.id ? updated : d))
-                  setEditDecision(null)
-                  addToast('Decision updated', 'success')
-                } catch { addToast('Failed to update', 'error') }
-                finally { setEditSaving(false) }
-              }}
-            >
-              Save changes
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       {/* Edit project modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit project">
         <div className="space-y-4">
@@ -1005,28 +359,6 @@ export function ProjectDetailPage() {
           </div>
         </div>
       </Modal>
-
-      {/* Review modal */}
-      {reviewOpen && (
-        <ReviewModal
-          decisions={pendingDecisions}
-          journals={journals}
-          transcripts={transcripts}
-          onClose={() => setReviewOpen(false)}
-          onRefresh={reloadDecisions}
-        />
-      )}
-
-      {/* Add decision modal */}
-      {addOpen && userId && (
-        <AddDecisionModal
-          projectId={id!}
-          userId={userId}
-          transcripts={transcripts}
-          onClose={() => setAddOpen(false)}
-          onSaved={d => setDecisions(prev => [d, ...prev])}
-        />
-      )}
     </div>
   )
 }

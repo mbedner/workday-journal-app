@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { RiArrowLeftLine, RiPencilLine, RiSparklingLine } from '@remixicon/react'
 import { format } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import { triggerExtraction } from '../lib/decisions'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { TagInput } from '../components/ui/TagInput'
@@ -131,12 +130,6 @@ export function TranscriptDetailPage() {
 
       // Persist new attendee names so they appear in future suggestions
       if (attendees.length) await syncAttendees(attendees)
-
-      // Trigger decision extraction (fire-and-forget — never blocks save)
-      const validProjectIds = projectIds.filter(Boolean) as string[]
-      if (validProjectIds.length > 0) {
-        triggerExtraction({ sourceType: 'meeting_note', sourceId: id!, projectIds: validProjectIds, userId: user!.id })
-      }
 
       addToast('Saved', 'success')
       setIsEditing(false)

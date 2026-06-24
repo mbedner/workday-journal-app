@@ -78,30 +78,9 @@ export interface Subtask {
   created_at: string
 }
 
-export interface Decision {
-  id: string
-  project_id: string
-  user_id: string
-  content: string
-  source_type: 'journal_entry' | 'meeting_note' | 'manual'
-  source_id: string | null
-  date: string
-  people: string[]
-  type: 'strategic' | 'tactical' | 'operational' | null
-  confidence: 'high' | 'medium' | 'low' | null
-  status: 'pending_review' | 'active' | 'superseded' | 'dismissed'
-  superseded_by: string | null
-  notes: string | null
-  excerpt: string | null
-  created_at: string
-  updated_at: string
-  // Loaded client-side after fetch
-  source_title?: string | null
-}
-
 export interface SearchResult {
   id: string
-  type: 'journal' | 'task' | 'transcript' | 'decision'
+  type: 'journal' | 'task' | 'transcript'
   title: string
   date?: string
   body: string
