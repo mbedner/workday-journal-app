@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface Attendee {
@@ -51,9 +51,11 @@ export function useAttendees() {
     setAttendees(prev => prev.filter(a => a.id !== id))
   }
 
+  const names = useMemo(() => attendees.map(a => a.name), [attendees])
+
   return {
     attendees,
-    names: attendees.map(a => a.name),
+    names,
     loading,
     syncNames,
     rename,

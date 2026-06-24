@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { RiUserLine } from '@remixicon/react'
@@ -103,9 +103,14 @@ export function PeoplePage() {
     return sorted
   }, [people, search, sort, mentionCounts, noteText, recentTags])
 
-  // Every known attendee gets a Person automatically — keeps People and attendees in sync
+  // Every known attendee gets a Person automatically — keeps People and attendees in sync.
+  // Runs once per mount only — the ref guard prevents re-firing/overlapping runs that
+  // would otherwise race on stale `people` state and create duplicates.
+  const syncedRef = useRef(false)
   useEffect(() => {
+    if (syncedRef.current) return
     if (attendeesLoading || loading || knownAttendees.length === 0) return
+    syncedRef.current = true
     syncFromAttendees(knownAttendees)
   }, [attendeesLoading, loading, knownAttendees]) // eslint-disable-line react-hooks/exhaustive-deps
 
