@@ -13,7 +13,6 @@ import { supabase } from '../lib/supabase'
 import { Person, PersonNote, RelationshipType } from '../types'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { Select } from '../components/ui/Select'
 import { Textarea } from '../components/ui/Textarea'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
@@ -21,10 +20,6 @@ import { TagInput } from '../components/ui/TagInput'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Sk } from '../components/ui/Skeleton'
 import { useToast } from '../contexts/ToastContext'
-
-const RELATIONSHIP_LABELS: Record<RelationshipType, string> = {
-  coworker: 'Coworker', friend: 'Friend', family: 'Family', acquaintance: 'Acquaintance', other: 'Other',
-}
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
 
@@ -259,9 +254,7 @@ export function PersonDetailPage() {
           <Avatar person={person} />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{person.name}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {RELATIONSHIP_LABELS[person.relationship_type]}{person.role ? ` • ${person.role}` : ''}
-            </p>
+            {person.role && <p className="text-sm text-gray-500 mt-0.5">{person.role}</p>}
             <div className="flex gap-3 mt-1 text-xs text-gray-400 flex-wrap">
               {person.organization && <span>{person.organization}</span>}
               {person.where_met && <span>Met: {person.where_met}</span>}
@@ -401,17 +394,6 @@ export function PersonDetailPage() {
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit person">
         <div className="space-y-4">
           <Input label="Name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} autoFocus />
-          <Select
-            label="Relationship Type"
-            value={editForm.relationship_type}
-            onChange={e => setEditForm(f => ({ ...f, relationship_type: e.target.value as RelationshipType }))}
-          >
-            <option value="coworker">Coworker</option>
-            <option value="friend">Friend</option>
-            <option value="family">Family</option>
-            <option value="acquaintance">Acquaintance</option>
-            <option value="other">Other</option>
-          </Select>
           <Input label="Role / Context (optional)" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} />
           <Input label="Organization (optional)" value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))} />
           <Input label="Where We Met (optional)" value={editForm.where_met} onChange={e => setEditForm(f => ({ ...f, where_met: e.target.value }))} />

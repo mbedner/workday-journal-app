@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import { RiUserLine } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
-import { Person, RelationshipType } from '../types'
+import { Person } from '../types'
 import { usePeople, NewPersonInput } from '../hooks/usePeople'
+import { useAttendees } from '../hooks/useAttendees'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -13,16 +14,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Badge } from '../components/ui/Badge'
 import { SkGridCards } from '../components/ui/Skeleton'
 
-type FilterKey = 'all' | 'coworker' | 'friend' | 'family' | 'other'
 type SortKey = 'recently_viewed' | 'recently_updated' | 'alphabetical' | 'most_mentioned'
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'coworker', label: 'Coworkers' },
-  { key: 'friend',   label: 'Friends' },
-  { key: 'family',   label: 'Family' },
-  { key: 'other',    label: 'Other' },
-]
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'recently_viewed',  label: 'Recently viewed' },
@@ -30,10 +22,6 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'alphabetical',     label: 'Alphabetical' },
   { key: 'most_mentioned',   label: 'Most mentioned' },
 ]
-
-const RELATIONSHIP_LABELS: Record<RelationshipType, string> = {
-  coworker: 'Coworker', friend: 'Friend', family: 'Family', acquaintance: 'Acquaintance', other: 'Other',
-}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -57,10 +45,11 @@ function Avatar({ person, size = 40 }: { person: Person; size?: number }) {
 export function PeoplePage() {
   const navigate = useNavigate()
   const { people, loading, create } = usePeople()
+  const { names: knownAttendees } = useAttendees()
 
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recently_updated')
+  const [nameSuggestOpen, setNameSuggestOpen] = useState(false)
 
   const [mentionCounts, setMentionCounts] = useState<Record<string, number>>({})
   const [recentTags, setRecentTags] = useState<Record<string, string[]>>({})
@@ -95,11 +84,6 @@ export function PeoplePage() {
 
   const filtered = useMemo(() => {
     let list = people
-    if (filter !== 'all') {
-      list = filter === 'other'
-        ? list.filter(p => p.relationship_type === 'other' || p.relationship_type === 'acquaintance')
-        : list.filter(p => p.relationship_type === filter)
-    }
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(p =>
@@ -118,7 +102,18 @@ export function PeoplePage() {
     else if (sort === 'recently_viewed') sorted.sort((a, b) => (b.last_viewed_at ?? '').localeCompare(a.last_viewed_at ?? ''))
     else if (sort === 'most_mentioned') sorted.sort((a, b) => (mentionCounts[b.id] ?? 0) - (mentionCounts[a.id] ?? 0))
     return sorted
-  }, [people, filter, search, sort, mentionCounts, noteText, recentTags])
+  }, [people, search, sort, mentionCounts, noteText, recentTags])
+
+  const attendeeSuggestions = useMemo(() => {
+    const existing = new Set(people.map(p => p.name.trim().toLowerCase()))
+    return knownAttendees.filter(name => !existing.has(name.trim().toLowerCase()))
+  }, [knownAttendees, people])
+
+  const filteredNameSuggestions = useMemo(() => {
+    const q = form.name.trim().toLowerCase()
+    const list = q ? attendeeSuggestions.filter(n => n.toLowerCase().includes(q)) : attendeeSuggestions
+    return list.slice(0, 6)
+  }, [attendeeSuggestions, form.name])
 
   const openCreate = () => { setForm({ name: '', relationship_type: 'coworker' }); setModalOpen(true) }
 
@@ -156,20 +151,6 @@ export function PeoplePage() {
         </Select>
       </div>
 
-      <div className="flex gap-1.5 flex-wrap">
-        {FILTERS.map(f => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filter === f.key ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
       {loading ? (
         <SkGridCards count={6} />
       ) : people.length === 0 ? (
@@ -179,7 +160,7 @@ export function PeoplePage() {
           action={{ label: 'New Person', onClick: openCreate }}
         />
       ) : filtered.length === 0 ? (
-        <EmptyState title="No matches" description="Try a different search or filter." />
+        <EmptyState title="No matches" description="Try a different search." />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(p => (
@@ -191,9 +172,7 @@ export function PeoplePage() {
               <Avatar person={p} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {RELATIONSHIP_LABELS[p.relationship_type]}{p.role ? ` • ${p.role}` : ''}
-                </p>
+                {p.role && <p className="text-xs text-gray-500 mt-0.5">{p.role}</p>}
                 {(recentTags[p.id]?.length ?? 0) > 0 && (
                   <div className="flex gap-1 flex-wrap mt-1.5">
                     {recentTags[p.id].map(t => <Badge key={t} variant="indigo">{t}</Badge>)}
@@ -210,24 +189,33 @@ export function PeoplePage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Person">
         <div className="space-y-4">
-          <Input
-            label="Name"
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="Full name"
-            autoFocus
-          />
-          <Select
-            label="Relationship Type"
-            value={form.relationship_type}
-            onChange={e => setForm(f => ({ ...f, relationship_type: e.target.value as RelationshipType }))}
-          >
-            <option value="coworker">Coworker</option>
-            <option value="friend">Friend</option>
-            <option value="family">Family</option>
-            <option value="acquaintance">Acquaintance</option>
-            <option value="other">Other</option>
-          </Select>
+          <div className="relative">
+            <Input
+              label="Name"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              onFocus={() => setNameSuggestOpen(true)}
+              onBlur={() => setTimeout(() => setNameSuggestOpen(false), 100)}
+              placeholder="Full name"
+              autoFocus
+              autoComplete="off"
+            />
+            {nameSuggestOpen && filteredNameSuggestions.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full border border-gray-200 rounded-lg shadow-sm bg-white max-h-40 overflow-y-auto">
+                <p className="px-3 pt-2 pb-1 text-[11px] font-medium text-gray-400 uppercase tracking-wide">From your meeting attendees</p>
+                {filteredNameSuggestions.map(name => (
+                  <button
+                    key={name}
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); setForm(f => ({ ...f, name })); setNameSuggestOpen(false) }}
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 hover:text-indigo-700"
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Input
             label="Role / Context (optional)"
             value={form.role ?? ''}
