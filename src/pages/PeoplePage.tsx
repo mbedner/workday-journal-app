@@ -44,12 +44,11 @@ function Avatar({ person, size = 40 }: { person: Person; size?: number }) {
 
 export function PeoplePage() {
   const navigate = useNavigate()
-  const { people, loading, create } = usePeople()
-  const { names: knownAttendees } = useAttendees()
+  const { people, loading, create, syncFromAttendees } = usePeople()
+  const { names: knownAttendees, loading: attendeesLoading } = useAttendees()
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('recently_updated')
-  const [nameSuggestOpen, setNameSuggestOpen] = useState(false)
 
   const [mentionCounts, setMentionCounts] = useState<Record<string, number>>({})
   const [recentTags, setRecentTags] = useState<Record<string, string[]>>({})
@@ -104,16 +103,11 @@ export function PeoplePage() {
     return sorted
   }, [people, search, sort, mentionCounts, noteText, recentTags])
 
-  const attendeeSuggestions = useMemo(() => {
-    const existing = new Set(people.map(p => p.name.trim().toLowerCase()))
-    return knownAttendees.filter(name => !existing.has(name.trim().toLowerCase()))
-  }, [knownAttendees, people])
-
-  const filteredNameSuggestions = useMemo(() => {
-    const q = form.name.trim().toLowerCase()
-    const list = q ? attendeeSuggestions.filter(n => n.toLowerCase().includes(q)) : attendeeSuggestions
-    return list.slice(0, 6)
-  }, [attendeeSuggestions, form.name])
+  // Every known attendee gets a Person automatically — keeps People and attendees in sync
+  useEffect(() => {
+    if (attendeesLoading || loading || knownAttendees.length === 0) return
+    syncFromAttendees(knownAttendees)
+  }, [attendeesLoading, loading, knownAttendees]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = () => { setForm({ name: '', relationship_type: 'coworker' }); setModalOpen(true) }
 
@@ -189,33 +183,13 @@ export function PeoplePage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Person">
         <div className="space-y-4">
-          <div className="relative">
-            <Input
-              label="Name"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              onFocus={() => setNameSuggestOpen(true)}
-              onBlur={() => setTimeout(() => setNameSuggestOpen(false), 100)}
-              placeholder="Full name"
-              autoFocus
-              autoComplete="off"
-            />
-            {nameSuggestOpen && filteredNameSuggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full border border-gray-200 rounded-lg shadow-sm bg-white max-h-40 overflow-y-auto">
-                <p className="px-3 pt-2 pb-1 text-[11px] font-medium text-gray-400 uppercase tracking-wide">From your meeting attendees</p>
-                {filteredNameSuggestions.map(name => (
-                  <button
-                    key={name}
-                    type="button"
-                    onMouseDown={e => { e.preventDefault(); setForm(f => ({ ...f, name })); setNameSuggestOpen(false) }}
-                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 hover:text-indigo-700"
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Input
+            label="Name"
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Full name"
+            autoFocus
+          />
           <Input
             label="Role / Context (optional)"
             value={form.role ?? ''}
