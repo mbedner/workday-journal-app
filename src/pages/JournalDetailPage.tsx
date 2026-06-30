@@ -11,13 +11,13 @@ import { Badge } from '../components/ui/Badge'
 import { MarkdownContent } from '../components/ui/MarkdownContent'
 import { RichTextEditor } from '../components/ui/RichTextEditor'
 import { AiCleanupModal } from '../components/ui/AiCleanupModal'
+import { TaskModal } from '../components/ui/TaskModal'
 import { Sk } from '../components/ui/Skeleton'
 import { ProjectTag } from '../components/ui/ProjectTag'
 import { useProjects } from '../hooks/useProjects'
 import { useTags } from '../hooks/useTags'
 import { usePeople } from '../hooks/usePeople'
 import { extractMentionedPeople, syncMentions } from '../lib/mentions'
-import { Modal } from '../components/ui/Modal'
 import { useToast } from '../contexts/ToastContext'
 
 type CleanupField = 'focus' | 'accomplished' | 'needsAttention' | 'reflection'
@@ -48,8 +48,6 @@ export function JournalDetailPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   const [taskModal, setTaskModal] = useState(false)
-  const [taskTitle, setTaskTitle] = useState('')
-  const [addingTask, setAddingTask] = useState(false)
 
   const [cleanupField, setCleanupField] = useState<CleanupField | null>(null)
   const cleanupValue = cleanupField === 'focus' ? focus
@@ -160,24 +158,6 @@ export function JournalDetailPage() {
     }
   }
 
-  const addTask = async () => {
-    if (!taskTitle.trim()) return
-    setAddingTask(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('tasks').insert({
-      user_id: user!.id,
-      title: taskTitle.trim(),
-      status: 'todo',
-      priority: 'medium',
-      source_type: entryId.current ? 'journal' : 'manual',
-      source_id: entryId.current,
-    })
-    setTaskTitle('')
-    setTaskModal(false)
-    setAddingTask(false)
-    addToast('Task added', 'success')
-  }
-
   if (loading) return (
     <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
       <div className="space-y-2">
@@ -277,22 +257,12 @@ export function JournalDetailPage() {
           </div>
         )}
 
-        <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add Task">
-          <div className="space-y-4">
-            <input
-              value={taskTitle}
-              onChange={e => setTaskTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addTask() }}
-              placeholder="Task title..."
-              autoFocus
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setTaskModal(false)}>Cancel</Button>
-              <Button onClick={addTask} loading={addingTask} disabled={!taskTitle.trim()}>Add Task</Button>
-            </div>
-          </div>
-        </Modal>
+        <TaskModal
+          open={taskModal}
+          onClose={() => setTaskModal(false)}
+          sourceType={entryId.current ? 'journal' : 'manual'}
+          sourceId={entryId.current}
+        />
       </div>
     )
   }
@@ -384,22 +354,12 @@ export function JournalDetailPage() {
         />
       </div>
 
-      <Modal open={taskModal} onClose={() => setTaskModal(false)} title="Add Task">
-        <div className="space-y-4">
-          <input
-            value={taskTitle}
-            onChange={e => setTaskTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') addTask() }}
-            placeholder="Task title..."
-            autoFocus
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setTaskModal(false)}>Cancel</Button>
-            <Button onClick={addTask} loading={addingTask} disabled={!taskTitle.trim()}>Add Task</Button>
-          </div>
-        </div>
-      </Modal>
+      <TaskModal
+        open={taskModal}
+        onClose={() => setTaskModal(false)}
+        sourceType={entryId.current ? 'journal' : 'manual'}
+        sourceId={entryId.current}
+      />
 
       <AiCleanupModal
         open={cleanupField !== null}
