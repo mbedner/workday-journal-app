@@ -366,10 +366,10 @@ export function PeoplePage() {
             autoFocus
           />
           <Input
-            label="Role / Context (optional)"
+            label="Title (optional)"
             value={form.role ?? ''}
             onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            placeholder="e.g. Senior Front End Engineer, Neighbor, Son's teacher"
+            placeholder="e.g. Senior Engineer, Product Manager"
           />
           <Input
             label="Organization (optional)"

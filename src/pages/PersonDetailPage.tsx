@@ -383,7 +383,7 @@ export function PersonDetailPage() {
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit person">
         <div className="space-y-4">
           <Input label="Name" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} autoFocus />
-          <Input label="Role / Context (optional)" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} />
+          <Input label="Title (optional)" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} />
           <Input label="Organization (optional)" value={editForm.organization} onChange={e => setEditForm(f => ({ ...f, organization: e.target.value }))} />
           <Input label="Where We Met (optional)" value={editForm.where_met} onChange={e => setEditForm(f => ({ ...f, where_met: e.target.value }))} />
           <Input label="Avatar URL (optional)" value={editForm.avatar_url} onChange={e => setEditForm(f => ({ ...f, avatar_url: e.target.value }))} placeholder="https://..." />
