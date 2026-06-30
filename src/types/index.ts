@@ -101,8 +101,8 @@ export interface Person {
   organization: string | null
   where_met: string | null
   avatar_url: string | null
-  /** Lightweight freeform sections, e.g. { Family: ['Married', 'Two children'], Interests: ['Hiking'] } */
-  snapshot: Record<string, string[]>
+  /** AI-generated prose summary + timestamp, e.g. { summary: '...', generated_at: '2024-...' } */
+  snapshot: { summary?: string; generated_at?: string } | null
   last_viewed_at: string | null
   created_at: string
   updated_at: string

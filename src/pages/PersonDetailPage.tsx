@@ -8,6 +8,8 @@ import {
   RiBookOpenLine,
   RiFileList3Line,
   RiDeleteBinLine,
+  RiSparklingLine,
+  RiRefreshLine,
 } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Person, PersonNote, RelationshipType } from '../types'
@@ -23,8 +25,6 @@ import { Avatar } from '../components/ui/Avatar'
 import { useToast } from '../contexts/ToastContext'
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
-
-const SNAPSHOT_SECTIONS = ['Family', 'Interests', 'Current Life', 'Communication']
 
 interface JournalMention { id: string; entry_date: string; focus: string | null }
 interface MeetingMention { id: string; meeting_title: string; meeting_date: string | null }
@@ -48,10 +48,8 @@ export function PersonDetailPage() {
   )
   const [saving, setSaving] = useState(false)
 
-  // Snapshot edit modal
-  const [snapshotOpen, setSnapshotOpen] = useState(false)
-  const [snapshotDraft, setSnapshotDraft] = useState<Record<string, string>>({})
-  const [snapshotSaving, setSnapshotSaving] = useState(false)
+  // Snapshot generation
+  const [snapshotGenerating, setSnapshotGenerating] = useState(false)
 
   // Note composer
   const [noteText, setNoteText] = useState('')
@@ -132,36 +130,34 @@ export function PersonDetailPage() {
     }
   }
 
-  const openSnapshot = () => {
-    if (!person) return
-    const draft: Record<string, string> = {}
-    for (const section of SNAPSHOT_SECTIONS) draft[section] = (person.snapshot?.[section] ?? []).join('\n')
-    setSnapshotDraft(draft)
-    setSnapshotOpen(true)
-  }
-
-  const saveSnapshot = async () => {
-    if (!person) return
-    setSnapshotSaving(true)
+  const generateSnapshot = async () => {
+    if (!person || notes.length === 0) return
+    setSnapshotGenerating(true)
     try {
-      const snapshot: Record<string, string[]> = {}
-      for (const section of SNAPSHOT_SECTIONS) {
-        const lines = snapshotDraft[section]?.split('\n').map(l => l.trim()).filter(Boolean) ?? []
-        if (lines.length) snapshot[section] = lines
-      }
-      const { data, error } = await supabase
+      const res = await fetch('/api/ai/person-snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: person.name,
+          notes: notes.map(n => n.content),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate')
+
+      const snapshot = { summary: data.summary, generated_at: new Date().toISOString() }
+      const { data: updated, error } = await supabase
         .from('people')
         .update({ snapshot, updated_at: new Date().toISOString() })
         .eq('id', person.id)
         .select().single()
       if (error) throw error
-      setPerson(data)
-      setSnapshotOpen(false)
-      addToast('Snapshot updated', 'success')
-    } catch {
-      addToast('Failed to update snapshot', 'error')
+      setPerson(updated)
+      addToast('Snapshot generated', 'success')
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to generate snapshot', 'error')
     } finally {
-      setSnapshotSaving(false)
+      setSnapshotGenerating(false)
     }
   }
 
@@ -222,7 +218,7 @@ export function PersonDetailPage() {
   )
   if (!person) return null
 
-  const hasSnapshot = SNAPSHOT_SECTIONS.some(s => (person.snapshot?.[s]?.length ?? 0) > 0)
+  const hasSnapshot = !!person.snapshot?.summary
 
   return (
     <div className="space-y-8">
@@ -255,26 +251,37 @@ export function PersonDetailPage() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Snapshot</h2>
-          <button onClick={openSnapshot} className="text-xs text-indigo-600 hover:underline font-medium">
-            {hasSnapshot ? 'Edit snapshot' : 'Add snapshot'}
-          </button>
+          {notes.length > 0 && (
+            <button
+              onClick={generateSnapshot}
+              disabled={snapshotGenerating}
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {snapshotGenerating
+                ? <><RiRefreshLine size={12} className="animate-spin" /> Generating…</>
+                : hasSnapshot
+                  ? <><RiRefreshLine size={12} /> Regenerate</>
+                  : <><RiSparklingLine size={12} /> Generate with AI</>
+              }
+            </button>
+          )}
         </div>
         {hasSnapshot ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {SNAPSHOT_SECTIONS.filter(s => (person.snapshot?.[s]?.length ?? 0) > 0).map(section => (
-              <div key={section}>
-                <p className="text-xs font-semibold text-gray-500 mb-1">{section}</p>
-                <ul className="space-y-0.5">
-                  {person.snapshot[section].map((line, i) => (
-                    <li key={i} className="text-sm text-gray-700">• {line}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+            <p className="text-sm text-gray-700 leading-relaxed">{person.snapshot!.summary}</p>
+            {person.snapshot!.generated_at && (
+              <p className="text-xs text-gray-400">
+                Generated {formatDistanceToNow(new Date(person.snapshot!.generated_at), { addSuffix: true })}
+              </p>
+            )}
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl px-4 py-6 text-center">
-            <p className="text-sm text-gray-400">No snapshot yet — add quick context like family, interests, or communication style.</p>
+            <p className="text-sm text-gray-400">
+              {notes.length === 0
+                ? 'Add notes below to generate an AI snapshot.'
+                : 'No snapshot yet — click "Generate with AI" to summarize your notes.'}
+            </p>
           </div>
         )}
       </section>
@@ -383,27 +390,6 @@ export function PersonDetailPage() {
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={saveEdit} loading={saving} disabled={!editForm.name.trim()}>Save changes</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Snapshot edit modal */}
-      <Modal open={snapshotOpen} onClose={() => setSnapshotOpen(false)} title="Edit snapshot">
-        <div className="space-y-4">
-          <p className="text-xs text-gray-400">One detail per line. Keep this lightweight — just enough for quick context.</p>
-          {SNAPSHOT_SECTIONS.map(section => (
-            <Textarea
-              key={section}
-              label={section}
-              value={snapshotDraft[section] ?? ''}
-              onChange={e => setSnapshotDraft(d => ({ ...d, [section]: e.target.value }))}
-              rows={2}
-              placeholder={`e.g. ${section === 'Family' ? 'Married, Two children' : section === 'Interests' ? 'Hiking, Washington Commanders' : section === 'Current Life' ? 'Recently promoted' : 'Appreciates direct feedback'}`}
-            />
-          ))}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setSnapshotOpen(false)}>Cancel</Button>
-            <Button onClick={saveSnapshot} loading={snapshotSaving}>Save changes</Button>
           </div>
         </div>
       </Modal>
