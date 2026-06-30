@@ -398,7 +398,15 @@ export function TasksPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
           <p className="text-sm text-gray-500">
-            {loading ? 'Loading…' : `${totalCount} task${totalCount !== 1 ? 's' : ''}${canLoadMore ? ` · ${tasks.length} loaded` : ''}`}
+            {loading ? 'Loading…' : (() => {
+              const hasClientFilter = !!(projectFilter || search)
+              const shown = filtered.length
+              const total = totalCount
+              if (hasClientFilter && shown !== total) {
+                return `${shown} of ${total} task${total !== 1 ? 's' : ''}`
+              }
+              return `${total} task${total !== 1 ? 's' : ''}${canLoadMore ? ` · ${tasks.length} loaded` : ''}`
+            })()}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
