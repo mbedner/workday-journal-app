@@ -129,3 +129,14 @@ export interface PersonMention {
   source_id: string
   created_at: string
 }
+
+export interface PersonRelationship {
+  id: string
+  user_id: string
+  person_id: string
+  related_person_id: string
+  label: string
+  created_at: string
+  // joined
+  related_person?: Pick<Person, 'id' | 'name' | 'role'>
+}

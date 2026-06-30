@@ -10,9 +10,11 @@ import {
   RiDeleteBinLine,
   RiSparklingLine,
   RiRefreshLine,
+  RiCloseLine,
+  RiUserLine,
 } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
-import { Person, PersonNote, RelationshipType } from '../types'
+import { Person, PersonNote, PersonRelationship, RelationshipType } from '../types'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Textarea } from '../components/ui/Textarea'
@@ -23,8 +25,10 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Sk } from '../components/ui/Skeleton'
 import { Avatar } from '../components/ui/Avatar'
 import { useToast } from '../contexts/ToastContext'
+import { usePeople } from '../hooks/usePeople'
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
+const RELATIONSHIP_LABEL_SUGGESTIONS = ['Manages', 'Reports to', 'Works with', 'Mentor', 'Mentee', 'Peer', 'Client', 'Vendor', 'Friend']
 
 interface JournalMention { id: string; entry_date: string; focus: string | null }
 interface MeetingMention { id: string; meeting_title: string; meeting_date: string | null }
@@ -33,6 +37,7 @@ export function PersonDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { people: allPeople } = usePeople()
 
   const [person,  setPerson]  = useState<Person | null>(null)
   const [notes,   setNotes]   = useState<PersonNote[]>([])
@@ -51,6 +56,12 @@ export function PersonDetailPage() {
   // Snapshot generation
   const [snapshotGenerating, setSnapshotGenerating] = useState(false)
 
+  // Relationships
+  const [relationships, setRelationships] = useState<PersonRelationship[]>([])
+  const [relLabel, setRelLabel] = useState('')
+  const [relPersonId, setRelPersonId] = useState('')
+  const [relSaving, setRelSaving] = useState(false)
+
   // Note composer
   const [noteText, setNoteText] = useState('')
   const [noteTags, setNoteTags] = useState<string[]>([])
@@ -60,14 +71,16 @@ export function PersonDetailPage() {
   const load = async () => {
     if (!id) return
     setLoading(true)
-    const [{ data: p }, { data: n }, { data: mentions }] = await Promise.all([
+    const [{ data: p }, { data: n }, { data: mentions }, { data: rels }] = await Promise.all([
       supabase.from('people').select('*').eq('id', id).single(),
       supabase.from('person_notes').select('*').eq('person_id', id).order('created_at', { ascending: false }),
       supabase.from('person_mentions').select('source_type, source_id').eq('person_id', id),
+      supabase.from('person_relationships').select('*, related_person:people!person_relationships_related_person_id_fkey(id, name, role)').eq('person_id', id).order('label'),
     ])
     if (!p) { navigate('/people'); return }
     setPerson(p)
     setNotes(n ?? [])
+    setRelationships((rels ?? []) as PersonRelationship[])
 
     const journalIds = (mentions ?? []).filter(m => m.source_type === 'journal').map(m => m.source_id)
     const meetingIds  = (mentions ?? []).filter(m => m.source_type === 'meeting').map(m => m.source_id)
@@ -193,6 +206,36 @@ export function PersonDetailPage() {
       addToast('Failed to delete note', 'error')
     } finally {
       setDeleteNoteId(null)
+    }
+  }
+
+  const addRelationship = async () => {
+    if (!person || !relLabel.trim() || !relPersonId) return
+    setRelSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('person_relationships')
+        .insert({ user_id: user!.id, person_id: person.id, related_person_id: relPersonId, label: relLabel.trim() })
+        .select('*, related_person:people!person_relationships_related_person_id_fkey(id, name, role)')
+        .single()
+      if (error) throw error
+      setRelationships(prev => [...prev, data as PersonRelationship].sort((a, b) => a.label.localeCompare(b.label)))
+      setRelLabel('')
+      setRelPersonId('')
+    } catch (err: any) {
+      addToast(err?.code === '23505' ? 'That relationship already exists' : 'Failed to add relationship', 'error')
+    } finally {
+      setRelSaving(false)
+    }
+  }
+
+  const removeRelationship = async (relId: string) => {
+    try {
+      await supabase.from('person_relationships').delete().eq('id', relId)
+      setRelationships(prev => prev.filter(r => r.id !== relId))
+    } catch {
+      addToast('Failed to remove relationship', 'error')
     }
   }
 
@@ -339,6 +382,86 @@ export function PersonDetailPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Relationships */}
+      <section>
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Connections</h2>
+        <div className="space-y-4">
+          {/* Add relationship form */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+              <div className="w-full sm:w-40 shrink-0">
+                <Input
+                  list="rel-label-suggestions"
+                  value={relLabel}
+                  onChange={e => setRelLabel(e.target.value)}
+                  placeholder="Relationship…"
+                />
+                <datalist id="rel-label-suggestions">
+                  {RELATIONSHIP_LABEL_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <select
+                value={relPersonId}
+                onChange={e => setRelPersonId(e.target.value)}
+                className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select person…</option>
+                {allPeople.filter(p => p.id !== id).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</option>
+                ))}
+              </select>
+              <Button
+                onClick={addRelationship}
+                loading={relSaving}
+                disabled={!relLabel.trim() || !relPersonId}
+                variant="secondary"
+                size="sm"
+              >
+                <RiAddLine size={14} /> Add
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing relationships grouped by label */}
+          {relationships.length > 0 && (() => {
+            const groups = new Map<string, PersonRelationship[]>()
+            for (const r of relationships) {
+              if (!groups.has(r.label)) groups.set(r.label, [])
+              groups.get(r.label)!.push(r)
+            }
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+                {Array.from(groups.entries()).map(([label, rels]) => (
+                  <div key={label} className="px-4 py-3 flex items-start gap-3">
+                    <span className="text-xs font-semibold text-gray-500 w-28 shrink-0 pt-0.5">{label}</span>
+                    <div className="flex flex-wrap gap-2 flex-1">
+                      {rels.map(r => (
+                        <div key={r.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-0.5 group">
+                          <RiUserLine size={11} className="text-gray-400 shrink-0" />
+                          <Link to={`/people/${r.related_person_id}`} className="text-sm text-gray-800 hover:text-indigo-600 transition">
+                            {r.related_person?.name ?? '—'}
+                          </Link>
+                          {r.related_person?.role && (
+                            <span className="text-xs text-gray-400 hidden sm:inline">{r.related_person.role}</span>
+                          )}
+                          <button
+                            onClick={() => removeRelationship(r.id)}
+                            className="ml-0.5 p-0.5 text-gray-300 hover:text-red-500 transition rounded"
+                            aria-label="Remove"
+                          >
+                            <RiCloseLine size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+        </div>
       </section>
 
       {/* Mentions */}
