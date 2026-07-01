@@ -31,6 +31,28 @@ import { Combobox } from '../components/ui/Combobox'
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
 const RELATIONSHIP_LABEL_SUGGESTIONS = ['Manages', 'Reports to', 'Works with', 'Mentor', 'Mentee', 'Peer', 'Client', 'Vendor', 'Friend']
 
+// Known inverse pairs — used to infer relationships from the other person's page
+const INVERSE_LABEL: Record<string, string> = {
+  'Manages':      'Reports to',
+  'Reports to':   'Manages',
+  'Mentor':       'Mentee',
+  'Mentee':       'Mentor',
+  'Client':       'Vendor',
+  'Vendor':       'Client',
+  'Works with':   'Works with',
+  'Peer':         'Peer',
+  'Friend':       'Friend',
+  'Colleague':    'Colleague',
+}
+
+interface DisplayRelationship {
+  id: string
+  label: string
+  related_person_id: string
+  related_person?: { id: string; name: string; role: string | null }
+  inferred: boolean
+}
+
 interface JournalMention { id: string; entry_date: string; focus: string | null }
 interface MeetingMention { id: string; meeting_title: string; meeting_date: string | null }
 
@@ -58,7 +80,7 @@ export function PersonDetailPage() {
   const [snapshotGenerating, setSnapshotGenerating] = useState(false)
 
   // Relationships
-  const [relationships, setRelationships] = useState<PersonRelationship[]>([])
+  const [relationships, setRelationships] = useState<DisplayRelationship[]>([])
   const [relLabel, setRelLabel] = useState('')
   const [relPersonId, setRelPersonId] = useState('')
   const [relSaving, setRelSaving] = useState(false)
@@ -72,16 +94,42 @@ export function PersonDetailPage() {
   const load = async () => {
     if (!id) return
     setLoading(true)
-    const [{ data: p }, { data: n }, { data: mentions }, { data: rels }] = await Promise.all([
+    const [{ data: p }, { data: n }, { data: mentions }, { data: rels }, { data: incoming }] = await Promise.all([
       supabase.from('people').select('*').eq('id', id).single(),
       supabase.from('person_notes').select('*').eq('person_id', id).order('created_at', { ascending: false }),
       supabase.from('person_mentions').select('source_type, source_id').eq('person_id', id),
       supabase.from('person_relationships').select('*, related_person:people!person_relationships_related_person_id_fkey(id, name, role)').eq('person_id', id).order('label'),
+      supabase.from('person_relationships').select('*, related_person:people!person_relationships_person_id_fkey(id, name, role)').eq('related_person_id', id).order('label'),
     ])
     if (!p) { navigate('/people'); return }
     setPerson(p)
     setNotes(n ?? [])
-    setRelationships((rels ?? []) as PersonRelationship[])
+
+    const explicit: DisplayRelationship[] = ((rels ?? []) as PersonRelationship[]).map(r => ({
+      id: r.id,
+      label: r.label,
+      related_person_id: r.related_person_id,
+      related_person: r.related_person,
+      inferred: false,
+    }))
+
+    // Infer relationships from the other direction using the inverse label map
+    const inferred: DisplayRelationship[] = ((incoming ?? []) as any[])
+      .filter(r => INVERSE_LABEL[r.label] !== undefined)
+      .map(r => ({
+        id: r.id,
+        label: INVERSE_LABEL[r.label],
+        related_person_id: r.person_id,
+        related_person: r.related_person,
+        inferred: true,
+      }))
+      .filter(inf =>
+        !explicit.some(e =>
+          e.related_person_id === inf.related_person_id && e.label === inf.label
+        )
+      )
+
+    setRelationships([...explicit, ...inferred].sort((a, b) => a.label.localeCompare(b.label)))
 
     const journalIds = (mentions ?? []).filter(m => m.source_type === 'journal').map(m => m.source_id)
     const meetingIds  = (mentions ?? []).filter(m => m.source_type === 'meeting').map(m => m.source_id)
@@ -221,7 +269,14 @@ export function PersonDetailPage() {
         .select('*, related_person:people!person_relationships_related_person_id_fkey(id, name, role)')
         .single()
       if (error) throw error
-      setRelationships(prev => [...prev, data as PersonRelationship].sort((a, b) => a.label.localeCompare(b.label)))
+      const newRel: DisplayRelationship = {
+        id: (data as PersonRelationship).id,
+        label: (data as PersonRelationship).label,
+        related_person_id: (data as PersonRelationship).related_person_id,
+        related_person: (data as PersonRelationship).related_person,
+        inferred: false,
+      }
+      setRelationships(prev => [...prev, newRel].sort((a, b) => a.label.localeCompare(b.label)))
       setRelLabel('')
       setRelPersonId('')
     } catch (err: any) {
@@ -423,7 +478,7 @@ export function PersonDetailPage() {
 
           {/* Existing relationships grouped by label */}
           {relationships.length > 0 && (() => {
-            const groups = new Map<string, PersonRelationship[]>()
+            const groups = new Map<string, DisplayRelationship[]>()
             for (const r of relationships) {
               if (!groups.has(r.label)) groups.set(r.label, [])
               groups.get(r.label)!.push(r)
@@ -435,7 +490,7 @@ export function PersonDetailPage() {
                     <span className="text-xs font-semibold text-gray-500 w-28 shrink-0 pt-0.5">{label}</span>
                     <div className="flex flex-wrap gap-2 flex-1">
                       {rels.map(r => (
-                        <div key={r.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-0.5 group">
+                        <div key={`${r.id}-${r.label}`} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg pl-2 pr-1 py-0.5 group">
                           <RiUserLine size={11} className="text-gray-400 shrink-0" />
                           <Link to={`/people/${r.related_person_id}`} className="text-sm text-gray-800 hover:text-indigo-600 transition">
                             {r.related_person?.name ?? '—'}
@@ -443,13 +498,17 @@ export function PersonDetailPage() {
                           {r.related_person?.role && (
                             <span className="text-xs text-gray-400 hidden sm:inline">{r.related_person.role}</span>
                           )}
-                          <button
-                            onClick={() => removeRelationship(r.id)}
-                            className="ml-0.5 p-0.5 text-gray-300 hover:text-red-500 transition rounded"
-                            aria-label="Remove"
-                          >
-                            <RiCloseLine size={13} />
-                          </button>
+                          {r.inferred ? (
+                            <span className="ml-1 text-xs text-gray-300 italic">inferred</span>
+                          ) : (
+                            <button
+                              onClick={() => removeRelationship(r.id)}
+                              className="ml-0.5 p-0.5 text-gray-300 hover:text-red-500 transition rounded"
+                              aria-label="Remove"
+                            >
+                              <RiCloseLine size={13} />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
