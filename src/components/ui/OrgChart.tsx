@@ -47,7 +47,7 @@ export function OrgChart({ current, manager, reports }: Props) {
   if (!manager && reports.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 max-w-sm mx-auto">
       {/* Manager */}
       {manager && (
         <div className="flex flex-col gap-1">
