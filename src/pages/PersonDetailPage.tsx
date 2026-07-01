@@ -26,6 +26,7 @@ import { Sk } from '../components/ui/Skeleton'
 import { Avatar } from '../components/ui/Avatar'
 import { useToast } from '../contexts/ToastContext'
 import { usePeople } from '../hooks/usePeople'
+import { Combobox } from '../components/ui/Combobox'
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
 const RELATIONSHIP_LABEL_SUGGESTIONS = ['Manages', 'Reports to', 'Works with', 'Mentor', 'Mentee', 'Peer', 'Client', 'Vendor', 'Friend']
@@ -389,29 +390,25 @@ export function PersonDetailPage() {
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Connections</h2>
         <div className="space-y-4">
           {/* Add relationship form */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-              <div className="w-full sm:w-40 shrink-0">
-                <Input
-                  list="rel-label-suggestions"
+              <div className="w-full sm:w-44 shrink-0">
+                <Combobox
                   value={relLabel}
-                  onChange={e => setRelLabel(e.target.value)}
+                  onChange={setRelLabel}
+                  options={RELATIONSHIP_LABEL_SUGGESTIONS.map(s => ({ value: s, label: s }))}
                   placeholder="Relationship…"
+                  allowCustom
                 />
-                <datalist id="rel-label-suggestions">
-                  {RELATIONSHIP_LABEL_SUGGESTIONS.map(s => <option key={s} value={s} />)}
-                </datalist>
               </div>
-              <select
-                value={relPersonId}
-                onChange={e => setRelPersonId(e.target.value)}
-                className="flex-1 min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Select person…</option>
-                {allPeople.filter(p => p.id !== id).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}{p.role ? ` — ${p.role}` : ''}</option>
-                ))}
-              </select>
+              <div className="flex-1 min-w-0">
+                <Combobox
+                  value={relPersonId}
+                  onChange={setRelPersonId}
+                  options={allPeople.filter(p => p.id !== id).map(p => ({ value: p.id, label: p.name, sublabel: p.role ?? undefined }))}
+                  placeholder="Search people…"
+                />
+              </div>
               <Button
                 onClick={addRelationship}
                 loading={relSaving}
