@@ -12,6 +12,7 @@ import {
   RiRefreshLine,
   RiCloseLine,
   RiUserLine,
+  RiOrganizationChart,
 } from '@remixicon/react'
 import { supabase } from '../lib/supabase'
 import { Person, PersonNote, PersonRelationship, RelationshipType } from '../types'
@@ -79,6 +80,9 @@ export function PersonDetailPage() {
 
   // Snapshot generation
   const [snapshotGenerating, setSnapshotGenerating] = useState(false)
+
+  // Org chart modal
+  const [orgChartOpen, setOrgChartOpen] = useState(false)
 
   // Relationships
   const [relationships, setRelationships] = useState<DisplayRelationship[]>([])
@@ -344,23 +348,16 @@ export function PersonDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {(orgManager || orgReports.length > 0) && (
+            <Button variant="secondary" size="sm" onClick={() => setOrgChartOpen(true)}>
+              <RiOrganizationChart size={14} /> Hierarchy
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={openEdit}>
             <RiPencilLine size={14} /> Edit
           </Button>
         </div>
       </div>
-
-      {/* Org chart hierarchy */}
-      {(orgManager || orgReports.length > 0) && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Hierarchy</h2>
-          <OrgChart
-            current={{ id: person.id, name: person.name, role: person.role }}
-            manager={orgManager ? { id: orgManager.related_person_id, name: orgManager.related_person?.name ?? '', role: orgManager.related_person?.role } : undefined}
-            reports={orgReports.map(r => ({ id: r.related_person_id, name: r.related_person?.name ?? '', role: r.related_person?.role }))}
-          />
-        </section>
-      )}
 
       {/* Snapshot */}
       <section>
@@ -587,6 +584,15 @@ export function PersonDetailPage() {
             <Button onClick={saveEdit} loading={saving} disabled={!editForm.name.trim()}>Save changes</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Hierarchy modal */}
+      <Modal open={orgChartOpen} onClose={() => setOrgChartOpen(false)} title={`${person.name}'s Hierarchy`} size="lg">
+        <OrgChart
+          current={{ id: person.id, name: person.name, role: person.role }}
+          manager={orgManager ? { id: orgManager.related_person_id, name: orgManager.related_person?.name ?? '', role: orgManager.related_person?.role } : undefined}
+          reports={orgReports.map(r => ({ id: r.related_person_id, name: r.related_person?.name ?? '', role: r.related_person?.role }))}
+        />
       </Modal>
 
       {/* Delete note confirmation */}
