@@ -14,18 +14,14 @@ interface Props {
   reports: OrgNode[]
 }
 
-const CARD_W = 192 // w-48
-const GAP     = 16  // gap-4
-
 function PersonCard({ node, current = false }: { node: OrgNode; current?: boolean }) {
   const card = (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all shrink-0 ${
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all ${
         current
           ? 'border-indigo-300 bg-indigo-50 shadow-sm'
           : 'border-gray-200 bg-white hover:border-indigo-200 hover:shadow-sm'
       }`}
-      style={{ width: CARD_W }}
     >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 select-none ${
@@ -44,74 +40,37 @@ function PersonCard({ node, current = false }: { node: OrgNode; current?: boolea
   )
 
   if (current) return card
-  return <Link to={`/people/${node.id}`} className="block shrink-0">{card}</Link>
+  return <Link to={`/people/${node.id}`} className="block">{card}</Link>
 }
 
 export function OrgChart({ current, manager, reports }: Props) {
   if (!manager && reports.length === 0) return null
 
-  const reportsW = reports.length * CARD_W + Math.max(0, reports.length - 1) * GAP
-
-  // SVG x-positions relative to the left edge of the reports row
-  const firstCx = CARD_W / 2
-  const lastCx  = (reports.length - 1) * (CARD_W + GAP) + CARD_W / 2
-
   return (
-    // overflow-x-auto so wide report rows scroll rather than clip inside the modal
-    <div className="overflow-x-auto">
-      {/*
-        flex-col + items-center keeps every row centered over the same axis.
-        The vertical `w-px` dividers are 1px wide and naturally land on that axis.
-        The SVG and reports row share the same width (reportsW) so they align.
-      */}
-      <div className="flex flex-col items-center py-2 gap-0">
+    <div className="flex flex-col gap-1">
+      {/* Manager */}
+      {manager && (
+        <div className="flex flex-col gap-1">
+          <PersonCard node={manager} />
+          <div className="w-px h-4 bg-gray-200 ml-7" />
+        </div>
+      )}
 
-        {/* Manager */}
-        {manager && (
-          <>
-            <PersonCard node={manager} />
-            <div className="w-px h-5 bg-gray-200" />
-          </>
-        )}
+      {/* Current person */}
+      <PersonCard node={current} current />
 
-        {/* Current person */}
-        <PersonCard node={current} current />
-
-        {/* Reports */}
-        {reports.length > 0 && (
-          <>
-            <div className="w-px h-5 bg-gray-200" />
-
-            {reports.length === 1 ? (
-              <PersonCard node={reports[0]} />
-            ) : (
-              <>
-                {/* Branch: horizontal bar + vertical drops, sized to match reports row */}
-                <svg
-                  width={reportsW}
-                  height={20}
-                  style={{ display: 'block', flexShrink: 0 }}
-                >
-                  {/* Horizontal bar connecting first and last card centers */}
-                  <line x1={firstCx} y1={0} x2={lastCx} y2={0} stroke="#e5e7eb" strokeWidth="1" />
-                  {/* Vertical drop to each card */}
-                  {reports.map((_, i) => {
-                    const cx = i * (CARD_W + GAP) + CARD_W / 2
-                    return (
-                      <line key={i} x1={cx} y1={0} x2={cx} y2={20} stroke="#e5e7eb" strokeWidth="1" />
-                    )
-                  })}
-                </svg>
-
-                {/* Report cards — same width as the SVG above */}
-                <div className="flex shrink-0" style={{ gap: GAP }}>
-                  {reports.map(r => <PersonCard key={r.id} node={r} />)}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
+      {/* Reports */}
+      {reports.length > 0 && (
+        <>
+          <div className="w-px h-4 bg-gray-200 ml-7" />
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-1 mb-1">
+            People reporting to {current.name}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {reports.map(r => <PersonCard key={r.id} node={r} />)}
+          </div>
+        </>
+      )}
     </div>
   )
 }
