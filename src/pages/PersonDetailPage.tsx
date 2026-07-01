@@ -27,6 +27,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { useToast } from '../contexts/ToastContext'
 import { usePeople } from '../hooks/usePeople'
 import { Combobox } from '../components/ui/Combobox'
+import { OrgChart } from '../components/ui/OrgChart'
 
 const TAG_SUGGESTIONS = ['Family', 'Kids', 'Career', 'Interests', 'Travel', 'Communication', 'Favorites', 'Goals', 'Stressors', 'Miscellaneous']
 const RELATIONSHIP_LABEL_SUGGESTIONS = ['Manages', 'Reports to', 'Works with', 'Mentor', 'Mentee', 'Peer', 'Client', 'Vendor', 'Friend']
@@ -319,6 +320,9 @@ export function PersonDetailPage() {
 
   const hasSnapshot = !!person.snapshot?.summary
 
+  const orgManager = relationships.find(r => r.label === 'Reports to')
+  const orgReports = relationships.filter(r => r.label === 'Manages')
+
   return (
     <div className="space-y-8">
       <Link to="/people" className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition">
@@ -345,6 +349,18 @@ export function PersonDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Org chart hierarchy */}
+      {(orgManager || orgReports.length > 0) && (
+        <section>
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Hierarchy</h2>
+          <OrgChart
+            current={{ id: person.id, name: person.name, role: person.role }}
+            manager={orgManager ? { id: orgManager.related_person_id, name: orgManager.related_person?.name ?? '', role: orgManager.related_person?.role } : undefined}
+            reports={orgReports.map(r => ({ id: r.related_person_id, name: r.related_person?.name ?? '', role: r.related_person?.role }))}
+          />
+        </section>
+      )}
 
       {/* Snapshot */}
       <section>
