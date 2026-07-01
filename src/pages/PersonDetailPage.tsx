@@ -511,15 +511,13 @@ export function PersonDetailPage() {
                           {r.related_person?.role && (
                             <span className="text-xs text-gray-400 hidden sm:inline">{r.related_person.role}</span>
                           )}
-                          {!r.inferred && (
-                            <button
-                              onClick={() => removeRelationship(r.id)}
-                              className="ml-0.5 p-0.5 text-gray-300 hover:text-red-500 transition rounded"
-                              aria-label="Remove"
-                            >
-                              <RiCloseLine size={13} />
-                            </button>
-                          )}
+                          <button
+                            onClick={() => removeRelationship(r.id)}
+                            className="ml-0.5 p-0.5 text-gray-300 hover:text-red-500 transition rounded"
+                            aria-label="Remove"
+                          >
+                            <RiCloseLine size={13} />
+                          </button>
                         </div>
                       ))}
                     </div>
